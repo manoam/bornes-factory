@@ -14,6 +14,13 @@
   --k-success: #16A34A;
   --k-warning: #EA580C;
   --k-danger: #DC2626;
+
+  /* Sidebar (dark theme — calque sur Stock pour cohérence Konitys). */
+  --k-sidebar-bg: #1E2A40;
+  --k-sidebar-text: #94A3B8;
+  --k-sidebar-text-active: #F1F5F9;
+  --k-sidebar-border: #2F4264;
+  --k-sidebar-section: #6B85A8;
 }
 
 * { box-sizing: border-box; }
