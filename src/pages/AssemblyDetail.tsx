@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import QrScannerModal, { type ParsedQr } from '../components/QrScannerModal';
+import OperatorAvatar from '../components/OperatorAvatar';
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -314,7 +315,7 @@ function AssemblyHeader({
           <div className="text-[11px] uppercase tracking-wide text-[--k-muted] mb-0.5">
             Opérateur
           </div>
-          {order.operatorName || <span className="italic text-[--k-muted]">—</span>}
+          <OperatorAvatar name={order.operatorName} size="sm" />
         </div>
         <div>
           <div className="text-[11px] uppercase tracking-wide text-[--k-muted] mb-0.5">

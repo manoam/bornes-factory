@@ -17,6 +17,7 @@ import {
   Printer,
 } from 'lucide-react';
 import api from '../services/api';
+import OperatorAvatar from '../components/OperatorAvatar';
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -630,9 +631,15 @@ function FactoryInfoSection({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-[13px]">
         <div>
           <Label>Opérateur</Label>
-          <div className="inline-flex items-center gap-1.5 text-[--k-text]">
-            <UserIcon className="h-3.5 w-3.5 text-[--k-muted]" />
-            {order.operatorName || <span className="italic text-[--k-muted]">—</span>}
+          <div className="text-[--k-text]">
+            {order.operatorName ? (
+              <OperatorAvatar name={order.operatorName} size="md" />
+            ) : (
+              <span className="inline-flex items-center gap-1.5 italic text-[--k-muted]">
+                <UserIcon className="h-3.5 w-3.5" />
+                —
+              </span>
+            )}
           </div>
         </div>
         <div>

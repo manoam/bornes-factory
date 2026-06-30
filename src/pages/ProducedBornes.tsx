@@ -11,6 +11,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import api from '../services/api';
+import OperatorAvatar from '../components/OperatorAvatar';
 
 interface BorneParc {
   id: number;
@@ -290,8 +291,8 @@ export default function ProducedBornes() {
                         ? new Date(r.completedAt).toLocaleDateString('fr-FR')
                         : '—'}
                     </td>
-                    <td className="px-4 py-2 text-[--k-muted] truncate max-w-[150px]">
-                      {r.operatorName || '—'}
+                    <td className="px-4 py-2 max-w-[180px]">
+                      <OperatorAvatar name={r.operatorName} size="sm" />
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums">
                       {r.componentsInstalled}

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import OperatorAvatar from '../components/OperatorAvatar';
 
 type Status = 'DRAFT' | 'IN_PROGRESS' | 'TESTING' | 'COMPLETED' | 'CANCELLED';
 
@@ -289,8 +290,8 @@ export default function AssembliesList() {
                           {meta.label}
                         </span>
                       </td>
-                      <td className="px-4 py-2 text-[--k-muted] truncate max-w-[160px]">
-                        {r.operatorName || '—'}
+                      <td className="px-4 py-2 max-w-[180px]">
+                        <OperatorAvatar name={r.operatorName} size="sm" />
                       </td>
                       <td className="px-4 py-2 text-right tabular-nums">
                         {r.componentsRequired != null
