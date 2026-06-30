@@ -266,7 +266,7 @@ export default function ProducedBornes() {
                   <tr key={r.id} className="hover:bg-[--k-surface-2]/40 align-top">
                     <td className="px-4 py-2 font-mono">
                       <Link
-                        to={`/assemblies/${r.id}`}
+                        to={`/produced-bornes/${r.id}`}
                         className="text-[--k-primary] hover:underline"
                       >
                         {r.internalNumber || (
