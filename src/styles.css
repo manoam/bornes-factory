@@ -39,3 +39,119 @@ body {
   border-color: var(--k-primary);
   box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
 }
+
+/* ─── Print layout ────────────────────────────────────────────────────────
+ *
+ * Used by the "Imprimer fiche technique" button on /produced-bornes/:id.
+ * Strategy: the page already has all the info, we just hide the app chrome
+ * (sidebar, topbar, navigation links, action buttons) and tweak typography
+ * so it fits A4. The user picks "Save as PDF" or a physical printer from
+ * the browser's print dialog.
+ *
+ * Classes:
+ *   .no-print           → hidden when printing
+ *   .print-only         → only visible when printing
+ *   .print-page         → the printable content container; reset page margins
+ *   .print-section      → collapsed paddings + page-break hints
+ */
+
+@media print {
+  /* Always start from a clean slate. The browser handles page margins via
+     @page, not our containers. */
+  body {
+    background: white !important;
+  }
+
+  /* Hide app chrome and anything explicitly marked. */
+  .no-print,
+  header[role='banner'],
+  aside,
+  nav,
+  button {
+    display: none !important;
+  }
+
+  /* But re-show the elements we want to keep, in case they were hidden by
+     a broader rule above. */
+  .print-only {
+    display: revert !important;
+  }
+
+  /* Outlet content gets the full width. */
+  main {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  .print-page {
+    box-shadow: none !important;
+    background: white !important;
+    color: black !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+  }
+
+  /* Cards become flat borders. We keep them to preserve the visual grouping
+     on paper but tighten spacing. */
+  .print-page section,
+  .print-page .rounded-xl {
+    box-shadow: none !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 4px !important;
+    page-break-inside: avoid;
+    background: white !important;
+  }
+
+  /* Force a sane base font size on paper. The screen sizes are too small. */
+  .print-page {
+    font-size: 11pt;
+    line-height: 1.35;
+  }
+
+  .print-page h1 {
+    font-size: 22pt;
+  }
+  .print-page h2 {
+    font-size: 13pt;
+  }
+
+  /* Make the parc / not-found banner readable in B&W too. */
+  .print-page .bg-emerald-50,
+  .print-page .bg-emerald-50\/40 {
+    background: white !important;
+  }
+  .print-page .bg-rose-50 {
+    background: white !important;
+  }
+  .print-page .text-emerald-700,
+  .print-page .text-emerald-800,
+  .print-page .text-emerald-900 {
+    color: black !important;
+  }
+  .print-page .text-rose-700,
+  .print-page .text-rose-800,
+  .print-page .text-rose-900 {
+    color: black !important;
+  }
+
+  /* Hide the history block — too long for a tech sheet. */
+  .print-hide {
+    display: none !important;
+  }
+
+  /* Footer with timestamp gets pushed to the bottom of the last page. */
+  .print-footer {
+    margin-top: 16pt;
+    padding-top: 8pt;
+    border-top: 1px solid #d1d5db;
+    font-size: 9pt;
+    color: #6b7280;
+    text-align: center;
+  }
+
+  @page {
+    size: A4;
+    margin: 12mm 15mm;
+  }
+}

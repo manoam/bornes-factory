@@ -14,6 +14,7 @@ import {
   Tag,
   Calendar,
   Loader2,
+  Printer,
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -165,14 +166,34 @@ export default function ProducedBorneDetail() {
     (completedEvent?.payload?.movementsCreated as number | undefined) ?? null;
 
   return (
-    <div className="space-y-4">
-      <Link
-        to="/produced-bornes"
-        className="text-[12px] text-[--k-primary] inline-flex items-center gap-1"
+    <div className="space-y-4 print-page">
+      <div className="flex items-center justify-between gap-2 no-print">
+        <Link
+          to="/produced-bornes"
+          className="text-[12px] text-[--k-primary] inline-flex items-center gap-1"
+        >
+          <ArrowLeft className="h-3 w-3" />
+          Toutes les bornes produites
+        </Link>
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-[--k-border] bg-[--k-surface] px-3 py-1.5 text-[13px] font-medium text-[--k-text] hover:bg-[--k-surface-2]"
+          title="Imprimer la fiche technique"
+        >
+          <Printer className="h-4 w-4" />
+          Imprimer fiche technique
+        </button>
+      </div>
+
+      {/* Print-only header band — replaces the in-app NavLink trail when on paper. */}
+      <div
+        className="print-only hidden mb-3 pb-2 border-b border-slate-300 text-[11pt]"
+        aria-hidden="true"
       >
-        <ArrowLeft className="h-3 w-3" />
-        Toutes les bornes produites
-      </Link>
+        <div className="font-semibold tracking-wide">KONITYS FACTORY</div>
+        <div className="text-slate-600">Fiche technique de borne produite</div>
+      </div>
 
       <BorneHeader
         order={order}
@@ -207,7 +228,15 @@ export default function ProducedBorneDetail() {
 
       {order.notes && order.notes.trim() && <NotesSection notes={order.notes} />}
 
-      <HistorySection events={historyQ.data || []} />
+      <div className="print-hide">
+        <HistorySection events={historyQ.data || []} />
+      </div>
+
+      {/* Footer with timestamp — only shows up on print. */}
+      <div className="print-only hidden print-footer">
+        Fiche imprimée le {new Date().toLocaleString('fr-FR')} ·{' '}
+        Konitys Factory · n° interne {order.internalNumber || '—'}
+      </div>
     </div>
   );
 }
