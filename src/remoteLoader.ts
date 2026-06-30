@@ -14,9 +14,11 @@ import * as ReactDOM from 'react-dom';
  * to the local Topbar / Sidebar.
  */
 
+// L'ancien fallback Railway est périmé (404). On pointe par défaut sur
+// l'instance dev Konitys. En prod, VITE_PLATEFORM_URL doit être configurée
+// en Build Argument côté Coolify pour pointer sur plateform.orkessi.com.
 const PLATEFORM_URL =
-  import.meta.env.VITE_PLATEFORM_URL ||
-  'https://plateform-frontend-production.up.railway.app';
+  import.meta.env.VITE_PLATEFORM_URL || 'https://plateformdev.orkessi.com';
 
 interface RemoteContainer {
   init: (shareScope: Record<string, unknown>) => void;
