@@ -1,0 +1,17 @@
+# Local development compose for the Factory client. Just builds the SPA
+# image and serves it through nginx. The backend lives in a separate repo
+# (konitys-api-factory) — run its own `docker compose up` next to this.
+services:
+  client:
+    build:
+      context: .
+      args:
+        # Vite inlines these into the bundle at build time. Override here
+        # if you want to point at a non-local backend.
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3201/api}
+        VITE_KEYCLOAK_URL: ${VITE_KEYCLOAK_URL:-https://keycloak.orkessi.com}
+        VITE_KEYCLOAK_REALM: ${VITE_KEYCLOAK_REALM:-konitys}
+        VITE_KEYCLOAK_CLIENT_ID: ${VITE_KEYCLOAK_CLIENT_ID:-stock-management}
+    restart: unless-stopped
+    ports:
+      - '5273:80'
