@@ -153,6 +153,13 @@ export default function ProductionOrders() {
   );
 }
 
+interface AvailableModel {
+  id: string;
+  name: string;
+  description: string | null;
+  itemCount: number;
+}
+
 function CreateModal({
   onClose,
   onSubmit,
@@ -170,11 +177,35 @@ function CreateModal({
   submitting: boolean;
   error: string | null;
 }) {
-  const [model, setModel] = useState('Borne Kalifun');
+  // Récupère depuis Stock les nomenclatures fabricables. Si Stock est down
+  // on n'arrive pas à charger — on affiche un message d'erreur et on désactive
+  // le bouton Créer (mieux que de laisser saisir un modèle invalide).
+  const modelsQ = useQuery({
+    queryKey: ['available-models'],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: AvailableModel[] }>(
+        '/production-orders/available-models',
+      );
+      return res.data.data;
+    },
+    retry: false,
+  });
+
+  const [model, setModel] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [priority, setPriority] = useState<'LOW' | 'NORMAL' | 'HIGH'>('NORMAL');
   const [reason, setReason] = useState('');
   const [targetDate, setTargetDate] = useState('');
+
+  // Quand les modèles arrivent, on présélectionne le 1er pour que le user
+  // n'ait pas à choisir s'il n'y en a qu'un.
+  if (modelsQ.data && !model && modelsQ.data.length > 0) {
+    setModel(modelsQ.data[0].name);
+  }
+
+  const modelsError =
+    (modelsQ.error as { response?: { data?: { error?: string } } } | null)?.response?.data
+      ?.error || (modelsQ.error ? 'Impossible de charger les modèles' : null);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -187,12 +218,33 @@ function CreateModal({
         </div>
         <div className="p-4 space-y-3">
           <Field label="Modèle">
-            <input
-              className="input-field"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder="ex : Borne Kalifun"
-            />
+            {modelsQ.isLoading ? (
+              <div className="input-field flex items-center text-[--k-muted] text-[12px]">
+                Chargement des modèles…
+              </div>
+            ) : modelsError ? (
+              <div className="rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-[12px] text-rose-700">
+                {modelsError}
+              </div>
+            ) : (modelsQ.data || []).length === 0 ? (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-[12px] text-amber-800">
+                Aucune nomenclature trouvée côté Stock. Importez une borne
+                d'abord dans Stock.
+              </div>
+            ) : (
+              <select
+                className="input-field"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+              >
+                {(modelsQ.data || []).map((m) => (
+                  <option key={m.id} value={m.name}>
+                    {m.name}
+                    {m.itemCount > 0 ? ` (${m.itemCount} composants)` : ''}
+                  </option>
+                ))}
+              </select>
+            )}
           </Field>
           <Field label="Quantité">
             <input
