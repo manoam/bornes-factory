@@ -181,20 +181,22 @@ export default function ProductionOrderDetail() {
         ) : (
           <ul className="divide-y divide-[--k-border]">
             {order.assemblyOrders.map((a, i) => (
-              <li
-                key={a.id}
-                className="flex items-center gap-3 px-4 py-2 hover:bg-[--k-surface-2]"
-              >
-                <span className="font-mono text-[12px] text-[--k-muted] w-12">#{i + 1}</span>
-                <span className="font-medium flex-1">
-                  {a.internalNumber || <span className="text-[--k-muted] italic">non attribué</span>}
-                </span>
-                <span className="text-[11px] text-[--k-muted]">
-                  {a._count?.components || 0} composants
-                </span>
-                <span className="text-[11px] inline-block rounded-full bg-slate-100 px-2 py-0.5">
-                  {a.status}
-                </span>
+              <li key={a.id}>
+                <Link
+                  to={`/assemblies/${a.id}`}
+                  className="flex items-center gap-3 px-4 py-2 hover:bg-[--k-surface-2]"
+                >
+                  <span className="font-mono text-[12px] text-[--k-muted] w-12">#{i + 1}</span>
+                  <span className="font-medium flex-1">
+                    {a.internalNumber || <span className="text-[--k-muted] italic">non attribué</span>}
+                  </span>
+                  <span className="text-[11px] text-[--k-muted]">
+                    {a._count?.components || 0} composants
+                  </span>
+                  <span className="text-[11px] inline-block rounded-full bg-slate-100 px-2 py-0.5">
+                    {a.status}
+                  </span>
+                </Link>
               </li>
             ))}
           </ul>
