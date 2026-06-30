@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet } from 'react-router-dom';
-import { Factory, ClipboardList, Wrench, LogOut } from 'lucide-react';
+import { Factory, ClipboardList, Wrench, LogOut, PackageCheck } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 /**
@@ -11,6 +11,7 @@ const NAV = [
   { to: '/', label: 'Tableau de bord', icon: Factory, end: true },
   { to: '/production-orders', label: 'Ordres de fabrication', icon: ClipboardList },
   { to: '/assemblies', label: 'Assemblages', icon: Wrench },
+  { to: '/produced-bornes', label: 'Bornes produites', icon: PackageCheck },
 ];
 
 export default function AppLayout() {
