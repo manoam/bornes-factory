@@ -5,7 +5,7 @@ import AppLayout from './components/layout/AppLayout';
 import Dashboard from './pages/Dashboard';
 import ProductionOrders from './pages/ProductionOrders';
 import ProductionOrderDetail from './pages/ProductionOrderDetail';
-import AssembliesPlaceholder from './pages/AssembliesPlaceholder';
+import AssembliesList from './pages/AssembliesList';
 import AssemblyDetail from './pages/AssemblyDetail';
 
 const queryClient = new QueryClient({
@@ -36,7 +36,7 @@ export default function App() {
                 <Route index element={<Dashboard />} />
                 <Route path="production-orders" element={<ProductionOrders />} />
                 <Route path="production-orders/:id" element={<ProductionOrderDetail />} />
-                <Route path="assemblies" element={<AssembliesPlaceholder />} />
+                <Route path="assemblies" element={<AssembliesList />} />
                 <Route path="assemblies/:id" element={<AssemblyDetail />} />
               </Route>
             </Routes>
