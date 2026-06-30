@@ -34,14 +34,18 @@ export function Topbar({ onToggleMobileMenu }: TopbarProps) {
     if (searchOpen && searchRef.current) searchRef.current.focus()
   }, [searchOpen])
 
+  // Initiales pour l'avatar fallback. fullName est déjà calculé proprement
+  // par computeDisplayName (cf. AuthContext), donc on s'en sert directement
+  // — sauf si vraiment rien n'est dispo, auquel cas on tombe sur '??'.
   const initials = user?.fullName
     ? user.fullName
-        .split(' ')
+        .split(/\s+/)
+        .filter(Boolean)
         .map((n) => n[0])
         .join('')
         .slice(0, 2)
         .toUpperCase()
-    : user?.username?.slice(0, 2).toUpperCase() || '??'
+    : '??'
 
   return (
     <header className="shrink-0 z-30 border-b border-[--k-border] bg-gradient-to-r from-white to-blue-50 shadow-sm shadow-black/[0.04]">
@@ -223,7 +227,7 @@ export function Topbar({ onToggleMobileMenu }: TopbarProps) {
               {initials}
             </span>
             <span className="hidden sm:inline text-[13px] font-medium text-[--k-text]">
-              {user?.firstName || user?.username || ''}
+              {user?.firstName || user?.fullName || ''}
             </span>
             <ChevronDown className="h-3 w-3 text-[--k-muted]" />
           </button>
@@ -233,7 +237,7 @@ export function Topbar({ onToggleMobileMenu }: TopbarProps) {
               <div className="absolute right-0 z-40 mt-2 w-[240px] rounded-2xl border border-[--k-border] bg-white/95 backdrop-blur-lg shadow-xl shadow-black/8 py-1">
                 <div className="px-3 py-2.5 border-b border-[--k-border]">
                   <div className="text-[13px] font-semibold text-[--k-text]">
-                    {user?.fullName || user?.username}
+                    {user?.fullName || 'Utilisateur'}
                   </div>
                   <div className="text-xs text-[--k-muted]">{user?.email}</div>
                 </div>

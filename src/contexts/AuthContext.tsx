@@ -11,6 +11,36 @@ interface User {
   roles: string[];
 }
 
+/**
+ * Calcule un nom affichable depuis les claims du token Keycloak.
+ *
+ * Ordre de préférence — synchro avec le backend `computeDisplayName` dans
+ * `middleware/auth.ts`. Cherche d'abord le claim `name`, sinon compose
+ * `given_name + family_name`, sinon préfixe email, et en dernier recours
+ * `preferred_username` SAUF s'il a le format laid des IdP fédérés
+ * `f:{realm-id}:{user-id}`.
+ */
+function computeDisplayName(parsed: Record<string, unknown>): string {
+  const name = parsed.name;
+  if (typeof name === 'string' && name.trim()) return name.trim();
+
+  const composed = [parsed.given_name, parsed.family_name]
+    .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+    .join(' ')
+    .trim();
+  if (composed) return composed;
+
+  const email = parsed.email;
+  if (typeof email === 'string' && email.includes('@')) {
+    return email.split('@')[0];
+  }
+
+  const username = typeof parsed.preferred_username === 'string' ? parsed.preferred_username : '';
+  if (username && !/^f:[\w-]+:\d+$/.test(username)) return username;
+
+  return 'Utilisateur';
+}
+
 interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -48,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             id: String(parsed.sub),
             email: parsed.email as string,
             username: (parsed.preferred_username as string) || String(parsed.sub),
-            fullName: parsed.name as string,
+            fullName: computeDisplayName(parsed),
             firstName: parsed.given_name as string,
             lastName: parsed.family_name as string,
             roles: Array.from(new Set([...realm, ...client])),
