@@ -6,6 +6,7 @@ import {
   Wrench,
   PackageCheck,
   Stethoscope,
+  PackageMinus,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { loadRemoteComponent } from '../../remoteLoader'
@@ -48,6 +49,7 @@ const SIDEBAR_SECTIONS = [
     label: 'Atelier',
     items: [
       { icon: Stethoscope, label: 'Réparations', path: '/repair-orders', to: '/repair-orders' },
+      { icon: PackageMinus, label: 'Démontages', path: '/disassemblies', to: '/disassemblies' },
     ],
   },
   {
