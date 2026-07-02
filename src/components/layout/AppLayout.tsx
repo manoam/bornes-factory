@@ -5,6 +5,7 @@ import {
   ClipboardList,
   Wrench,
   PackageCheck,
+  Stethoscope,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { loadRemoteComponent } from '../../remoteLoader'
@@ -41,6 +42,12 @@ const SIDEBAR_SECTIONS = [
       { icon: LayoutDashboard, label: 'Tableau de bord', path: '/', to: '/' },
       { icon: ClipboardList, label: 'Ordres de fabrication', path: '/production-orders', to: '/production-orders' },
       { icon: Wrench, label: 'Assemblages', path: '/assemblies', to: '/assemblies' },
+    ],
+  },
+  {
+    label: 'Atelier',
+    items: [
+      { icon: Stethoscope, label: 'Réparations', path: '/repair-orders', to: '/repair-orders' },
     ],
   },
   {

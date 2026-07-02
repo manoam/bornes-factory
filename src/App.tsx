@@ -9,6 +9,8 @@ import AssembliesList from './pages/AssembliesList';
 import AssemblyDetail from './pages/AssemblyDetail';
 import ProducedBornes from './pages/ProducedBornes';
 import ProducedBorneDetail from './pages/ProducedBorneDetail';
+import RepairOrdersList from './pages/RepairOrdersList';
+import RepairOrderDetail from './pages/RepairOrderDetail';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -41,6 +43,8 @@ export default function App() {
                 <Route path="assemblies" element={<AssembliesList />} />
                 <Route path="produced-bornes" element={<ProducedBornes />} />
                 <Route path="produced-bornes/:id" element={<ProducedBorneDetail />} />
+                <Route path="repair-orders" element={<RepairOrdersList />} />
+                <Route path="repair-orders/:id" element={<RepairOrderDetail />} />
                 <Route path="assemblies/:id" element={<AssemblyDetail />} />
               </Route>
             </Routes>
