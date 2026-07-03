@@ -13,6 +13,8 @@ import RepairOrdersList from './pages/RepairOrdersList';
 import RepairOrderDetail from './pages/RepairOrderDetail';
 import DisassembliesList from './pages/DisassembliesList';
 import DisassemblyDetail from './pages/DisassemblyDetail';
+import RefurbishmentsList from './pages/RefurbishmentsList';
+import RefurbishmentDetail from './pages/RefurbishmentDetail';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -49,6 +51,8 @@ export default function App() {
                 <Route path="repair-orders/:id" element={<RepairOrderDetail />} />
                 <Route path="disassemblies" element={<DisassembliesList />} />
                 <Route path="disassemblies/:id" element={<DisassemblyDetail />} />
+                <Route path="refurbishments" element={<RefurbishmentsList />} />
+                <Route path="refurbishments/:id" element={<RefurbishmentDetail />} />
                 <Route path="assemblies/:id" element={<AssemblyDetail />} />
               </Route>
             </Routes>
