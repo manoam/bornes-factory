@@ -20,6 +20,7 @@ import {
 import api from '../services/api';
 import QrScannerModal, { type ParsedQr } from '../components/QrScannerModal';
 import OperatorAvatar from '../components/OperatorAvatar';
+import SerialLink from '../components/SerialLink';
 
 type Status = 'DRAFT' | 'IN_PROGRESS' | 'TESTING' | 'COMPLETED' | 'CANCELLED';
 type Action = 'REMOVED' | 'INSTALLED';
@@ -565,9 +566,13 @@ function SuggestionsSection({
             <span className="font-mono text-[12px] text-[--k-muted]">
               {s.productReference}
             </span>
-            <span className="text-[--k-text]">
-              {s.serialNumber || `qté ${s.quantity}`}
-            </span>
+            <SerialLink
+              serialNumber={s.serialNumber}
+              productReference={s.productReference}
+              productId={s.productId}
+              quantity={s.quantity}
+              className="text-[--k-text]"
+            />
             <button
               type="button"
               onClick={() => setPending(s)}
@@ -821,9 +826,13 @@ function ComponentItem({
   return (
     <li className="flex items-center gap-2 text-[12px]">
       <span className="font-mono text-[--k-muted]">{c.productReference}</span>
-      <span className="text-[--k-text]">
-        {c.serialNumber || `qté ${c.quantity}`}
-      </span>
+      <SerialLink
+        serialNumber={c.serialNumber}
+        productReference={c.productReference}
+        productId={c.productId}
+        quantity={c.quantity}
+        className="text-[--k-text]"
+      />
       {c.disposition && (
         <span className="text-[10px] rounded-full bg-slate-100 px-1.5 py-0.5">
           {DISPOSITION_LABEL[c.disposition]}

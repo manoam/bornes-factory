@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import OperatorAvatar from '../components/OperatorAvatar';
+import SerialLink from '../components/SerialLink';
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -541,9 +542,13 @@ function ComponentsSection({ components }: { components: AssemblyComponent[] }) 
                   {g.units.map((u) => (
                     <li key={u.id} className="flex items-center gap-2">
                       <Tag className="h-3 w-3 text-[--k-muted] shrink-0" />
-                      <span className="font-mono text-[--k-text]">
-                        {u.serialNumber || `qté ${u.quantity}`}
-                      </span>
+                      <SerialLink
+                        serialNumber={u.serialNumber}
+                        productReference={g.productReference}
+                        productId={g.productId}
+                        quantity={u.quantity}
+                        className="font-mono text-[--k-text]"
+                      />
                       {u.installedAt && (
                         <span className="text-[10px] text-[--k-muted]">
                           {new Date(u.installedAt).toLocaleString('fr-FR', {

@@ -16,6 +16,7 @@ import {
 import api from '../services/api';
 import QrScannerModal, { type ParsedQr } from '../components/QrScannerModal';
 import OperatorAvatar from '../components/OperatorAvatar';
+import SerialLink from '../components/SerialLink';
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -502,9 +503,13 @@ function ChecklistSection({
                 <span className="font-mono text-[11px] text-[--k-muted]">
                   {c.productReference}
                 </span>
-                <span className="text-[--k-muted]">
-                  {c.serialNumber || `qté ${c.quantity}`}
-                </span>
+                <SerialLink
+                  serialNumber={c.serialNumber}
+                  productReference={c.productReference}
+                  productId={c.productId}
+                  quantity={c.quantity}
+                  className="text-[--k-muted]"
+                />
                 {editable && (
                   <RemoveComponentBtn
                     assemblyId={assemblyId}
@@ -622,9 +627,13 @@ function ChecklistRow({
           <ul className="mt-1.5 space-y-0.5 text-[12px] text-[--k-muted]">
             {line.installed.map((u) => (
               <li key={u.id} className="flex items-center gap-2">
-                <span className="font-mono">
-                  {u.serialNumber || `qté ${u.quantity}`}
-                </span>
+                <SerialLink
+                  serialNumber={u.serialNumber}
+                  productReference={line.productReference}
+                  productId={line.productId}
+                  quantity={u.quantity}
+                  className="font-mono"
+                />
                 {u.installedAt && (
                   <span className="text-[10px]">
                     {new Date(u.installedAt).toLocaleTimeString('fr-FR', {
@@ -750,9 +759,13 @@ function ReadOnlyChecklistSection({ checklist }: { checklist: ChecklistPayload }
           <li key={c.id} className="px-4 py-2 flex items-center gap-3 text-[13px]">
             <Search className="h-4 w-4 text-[--k-muted]" />
             <span className="flex-1 truncate">{c.productReference} (extra)</span>
-            <span className="text-[--k-muted]">
-              {c.serialNumber || `qté ${c.quantity}`}
-            </span>
+            <SerialLink
+              serialNumber={c.serialNumber}
+              productReference={c.productReference}
+              productId={c.productId}
+              quantity={c.quantity}
+              className="text-[--k-muted]"
+            />
           </li>
         ))}
       </ul>
