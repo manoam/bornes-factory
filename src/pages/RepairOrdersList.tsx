@@ -11,6 +11,7 @@ import {
   Beaker,
   CheckCircle2,
   XCircle,
+  History,
 } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -245,12 +246,21 @@ export default function RepairOrdersList() {
                   return (
                     <tr key={r.id} className="hover:bg-[--k-surface-2]/40">
                       <td className="px-4 py-2 font-mono">
-                        <Link
-                          to={`/repair-orders/${r.id}`}
-                          className="text-[--k-primary] hover:underline"
-                        >
-                          {r.borneInternalNumber}
-                        </Link>
+                        <div className="flex items-center gap-1">
+                          <Link
+                            to={`/repair-orders/${r.id}`}
+                            className="text-[--k-primary] hover:underline"
+                          >
+                            {r.borneInternalNumber}
+                          </Link>
+                          <Link
+                            to={`/bornes/${encodeURIComponent(r.borneInternalNumber)}`}
+                            title="Vie de cette borne"
+                            className="text-[--k-muted] hover:text-[--k-primary]"
+                          >
+                            <History className="h-3 w-3" />
+                          </Link>
+                        </div>
                         <div className="text-[10px] text-[--k-muted] mt-0.5">
                           {r.sourceApp === 'factory'
                             ? 'Factory'

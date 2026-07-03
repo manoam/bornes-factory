@@ -262,7 +262,15 @@ function Header({
     <section className="rounded-xl border border-[--k-border] bg-[--k-surface] p-4 space-y-3">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-semibold font-mono">{dis.borneInternalNumber}</h1>
+          <h1 className="text-xl font-semibold font-mono">
+            <Link
+              to={`/bornes/${encodeURIComponent(dis.borneInternalNumber)}`}
+              className="hover:underline"
+              title="Vie de cette borne"
+            >
+              {dis.borneInternalNumber}
+            </Link>
+          </h1>
           <p className="text-[12px] text-[--k-muted]">
             Démontage ·{' '}
             {dis.sourceApp === 'factory'

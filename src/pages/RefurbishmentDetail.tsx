@@ -286,7 +286,13 @@ function Header({
         <div>
           <h1 className="text-xl font-semibold font-mono flex items-center gap-2">
             <Recycle className="h-5 w-5 text-[--k-primary]" />
-            {refurb.borneInternalNumber}
+            <Link
+              to={`/bornes/${encodeURIComponent(refurb.borneInternalNumber)}`}
+              className="hover:underline"
+              title="Vie de cette borne"
+            >
+              {refurb.borneInternalNumber}
+            </Link>
           </h1>
           <p className="text-[12px] text-[--k-muted]">
             Reconditionnement ·{' '}

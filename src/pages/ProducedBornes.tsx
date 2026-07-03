@@ -9,6 +9,7 @@ import {
   ChevronRight,
   RefreshCcw,
   ExternalLink,
+  History,
 } from 'lucide-react';
 import api from '../services/api';
 import OperatorAvatar from '../components/OperatorAvatar';
@@ -266,14 +267,25 @@ export default function ProducedBornes() {
                 rows.map((r) => (
                   <tr key={r.id} className="hover:bg-[--k-surface-2]/40 align-top">
                     <td className="px-4 py-2 font-mono">
-                      <Link
-                        to={`/produced-bornes/${r.id}`}
-                        className="text-[--k-primary] hover:underline"
-                      >
-                        {r.internalNumber || (
-                          <span className="text-[--k-muted] italic">—</span>
+                      <div className="flex items-center gap-1">
+                        <Link
+                          to={`/produced-bornes/${r.id}`}
+                          className="text-[--k-primary] hover:underline"
+                        >
+                          {r.internalNumber || (
+                            <span className="text-[--k-muted] italic">—</span>
+                          )}
+                        </Link>
+                        {r.internalNumber && (
+                          <Link
+                            to={`/bornes/${encodeURIComponent(r.internalNumber)}`}
+                            title="Vie de cette borne"
+                            className="text-[--k-muted] hover:text-[--k-primary]"
+                          >
+                            <History className="h-3 w-3" />
+                          </Link>
                         )}
-                      </Link>
+                      </div>
                     </td>
                     <td className="px-4 py-2">
                       <div className="font-medium truncate max-w-[200px]">

@@ -262,7 +262,13 @@ function Header({
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-xl font-semibold font-mono">
-            {order.borneInternalNumber}
+            <Link
+              to={`/bornes/${encodeURIComponent(order.borneInternalNumber)}`}
+              className="hover:underline"
+              title="Vie de cette borne"
+            >
+              {order.borneInternalNumber}
+            </Link>
           </h1>
           <p className="text-[12px] text-[--k-muted]">
             Réparation ·{' '}

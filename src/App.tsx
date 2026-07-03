@@ -16,6 +16,7 @@ import DisassemblyDetail from './pages/DisassemblyDetail';
 import RefurbishmentsList from './pages/RefurbishmentsList';
 import RefurbishmentDetail from './pages/RefurbishmentDetail';
 import ComponentTimeline from './pages/ComponentTimeline';
+import BorneTimeline, { BorneSearch } from './pages/BorneTimeline';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -55,6 +56,8 @@ export default function App() {
                 <Route path="refurbishments" element={<RefurbishmentsList />} />
                 <Route path="refurbishments/:id" element={<RefurbishmentDetail />} />
                 <Route path="components/:sn" element={<ComponentTimeline />} />
+                <Route path="bornes" element={<BorneSearch />} />
+                <Route path="bornes/:internal" element={<BorneTimeline />} />
                 <Route path="assemblies/:id" element={<AssemblyDetail />} />
               </Route>
             </Routes>

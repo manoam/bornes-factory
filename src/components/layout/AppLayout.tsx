@@ -8,6 +8,7 @@ import {
   Stethoscope,
   PackageMinus,
   Recycle,
+  Search,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { loadRemoteComponent } from '../../remoteLoader'
@@ -58,6 +59,7 @@ const SIDEBAR_SECTIONS = [
     label: 'Parc',
     items: [
       { icon: PackageCheck, label: 'Bornes produites', path: '/produced-bornes', to: '/produced-bornes' },
+      { icon: Search, label: 'Recherche borne', path: '/bornes', to: '/bornes' },
     ],
   },
 ]
