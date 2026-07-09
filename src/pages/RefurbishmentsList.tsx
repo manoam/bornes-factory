@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Search,
@@ -11,11 +10,11 @@ import {
   Beaker,
   CheckCircle2,
   XCircle,
-  History,
 } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import OperatorAvatar from '../components/OperatorAvatar';
+import BorneCell from '../components/BorneCell';
 
 type Status = 'DRAFT' | 'IN_PROGRESS' | 'TESTING' | 'COMPLETED' | 'CANCELLED';
 
@@ -31,6 +30,9 @@ interface RefurbRow {
   completedAt: string | null;
   createdAt: string;
   componentsCount: number;
+  borneGamme: string | null;
+  borneParc: string | null;
+  borneEnseigne: string | null;
 }
 
 interface ListResponse {
@@ -216,27 +218,28 @@ export default function RefurbishmentsList() {
       {/* Liste */}
       <section className="rounded-xl border border-[--k-border] bg-[--k-surface] overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-[13px]">
+          <table className="w-full text-[13px] table-zebra">
             <thead>
               <tr className="border-b border-[--k-border] text-left text-[11px] uppercase tracking-wide text-[--k-muted]">
                 <th className="px-4 py-2">Borne</th>
                 <th className="px-4 py-2">Motif</th>
-                <th className="px-4 py-2">Statut</th>
                 <th className="px-4 py-2">Opérateur</th>
-                <th className="px-4 py-2 text-right">Composants</th>
-                <th className="px-4 py-2">Créé</th>
+                <th className="px-4 py-2">Créé par</th>
+                <th className="px-4 py-2 text-right">Comp.</th>
+                <th className="px-4 py-2">Créé le</th>
+                <th className="px-4 py-2">État</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[--k-border]">
+            <tbody>
               {listQ.isLoading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-[--k-muted]">
+                  <td colSpan={7} className="px-4 py-6 text-[--k-muted]">
                     Chargement…
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-[--k-muted] italic">
+                  <td colSpan={7} className="px-4 py-6 text-[--k-muted] italic">
                     Aucun reconditionnement
                     {hasFilters ? ' pour ces filtres' : ''}.
                   </td>
@@ -245,34 +248,35 @@ export default function RefurbishmentsList() {
                 rows.map((r) => {
                   const meta = STATUS_META[r.status];
                   return (
-                    <tr key={r.id} className="hover:bg-[--k-surface-2]/40">
-                      <td className="px-4 py-2 font-mono">
-                        <div className="flex items-center gap-1">
-                          <Link
-                            to={`/refurbishments/${r.id}`}
-                            className="text-[--k-primary] hover:underline"
-                          >
-                            {r.borneInternalNumber}
-                          </Link>
-                          <Link
-                            to={`/bornes/${encodeURIComponent(r.borneInternalNumber)}`}
-                            title="Vie de cette borne"
-                            className="text-[--k-muted] hover:text-[--k-primary]"
-                          >
-                            <History className="h-3 w-3" />
-                          </Link>
-                        </div>
-                        <div className="text-[10px] text-[--k-muted] mt-0.5">
-                          {r.sourceApp === 'factory'
-                            ? 'Factory'
-                            : r.sourceApp === 'bornes'
-                              ? 'Parc'
-                              : 'Non résolue'}
-                        </div>
+                    <tr key={r.id}>
+                      <td className="px-4 py-2">
+                        <BorneCell
+                          internalNumber={r.borneInternalNumber}
+                          chantierLink={`/refurbishments/${r.id}`}
+                          sourceApp={r.sourceApp}
+                          gamme={r.borneGamme}
+                          parc={r.borneParc}
+                          enseigne={r.borneEnseigne}
+                        />
                       </td>
                       <td className="px-4 py-2 max-w-[300px]">
                         <div className="truncate text-[--k-text]">
                           {r.reason || <span className="italic text-[--k-muted]">—</span>}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 max-w-[180px]">
+                        <OperatorAvatar name={r.operatorName} size="sm" />
+                      </td>
+                      <td className="px-4 py-2 max-w-[180px]">
+                        <OperatorAvatar name={r.createdByName} size="sm" />
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        {r.componentsCount}
+                      </td>
+                      <td className="px-4 py-2 text-[--k-muted]">
+                        <div className="flex items-center gap-1.5">
+                          <OperatorAvatar name={r.createdByName} size="xs" showName={false} />
+                          {new Date(r.createdAt).toLocaleDateString('fr-FR')}
                         </div>
                       </td>
                       <td className="px-4 py-2">
@@ -281,15 +285,6 @@ export default function RefurbishmentsList() {
                         >
                           {meta.label}
                         </span>
-                      </td>
-                      <td className="px-4 py-2 max-w-[180px]">
-                        <OperatorAvatar name={r.operatorName} size="sm" />
-                      </td>
-                      <td className="px-4 py-2 text-right tabular-nums">
-                        {r.componentsCount}
-                      </td>
-                      <td className="px-4 py-2 text-[--k-muted]">
-                        {new Date(r.createdAt).toLocaleDateString('fr-FR')}
                       </td>
                     </tr>
                   );

@@ -162,3 +162,18 @@ body {
     margin: 12mm 15mm;
   }
 }
+
+/* Zebra rows for tables. Apply .table-zebra on the <table>. Uses opaque
+   pre-mixed colors so that sticky columns (bg-inherit) render solidly. */
+.table-zebra tbody tr:nth-child(odd),
+.table-zebra tbody tr:nth-child(odd) > td {
+  background-color: #F1F4FA;
+}
+.table-zebra tbody tr:nth-child(even),
+.table-zebra tbody tr:nth-child(even) > td {
+  background-color: var(--k-surface);
+}
+.table-zebra tbody tr:hover,
+.table-zebra tbody tr:hover > td {
+  background-color: #E3EAF5;
+}
