@@ -21,6 +21,7 @@ import api from '../services/api';
 import QrScannerModal, { type ParsedQr } from '../components/QrScannerModal';
 import OperatorAvatar from '../components/OperatorAvatar';
 import SerialLink from '../components/SerialLink';
+import PriorityBadge from '../components/PriorityBadge';
 
 type Status = 'DRAFT' | 'IN_PROGRESS' | 'TESTING' | 'COMPLETED' | 'CANCELLED';
 type Action = 'REMOVED' | 'INSTALLED';
@@ -38,11 +39,14 @@ interface RefurbComponent {
   createdAt: string;
 }
 
+type Priority = 'NORMAL' | 'HIGH' | 'URGENT';
+
 interface Refurbishment {
   id: string;
   borneInternalNumber: string;
   sourceApp: string;
   status: Status;
+  priority: Priority;
   reason: string | null;
   operatorId: string | null;
   operatorName: string | null;
@@ -303,9 +307,12 @@ function Header({
                 : 'non résolue'}
           </p>
         </div>
-        <span className={`inline-flex rounded-full px-2.5 py-1 text-[12px] font-semibold ${meta.cls}`}>
-          {meta.label}
-        </span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <PriorityBadge priority={refurb.priority} />
+          <span className={`inline-flex rounded-full px-2.5 py-1 text-[12px] font-semibold ${meta.cls}`}>
+            {meta.label}
+          </span>
+        </div>
       </div>
 
       <div>

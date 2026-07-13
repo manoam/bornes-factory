@@ -15,14 +15,18 @@ import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import OperatorAvatar from '../components/OperatorAvatar';
 import BorneCell from '../components/BorneCell';
+import PriorityBadge from '../components/PriorityBadge';
 
 type Status = 'DRAFT' | 'IN_PROGRESS' | 'TESTING' | 'COMPLETED' | 'CANCELLED';
+
+type Priority = 'NORMAL' | 'HIGH' | 'URGENT';
 
 interface RefurbRow {
   id: string;
   borneInternalNumber: string;
   sourceApp: string;
   status: Status;
+  priority: Priority;
   reason: string | null;
   operatorName: string | null;
   createdByName: string | null;
@@ -223,6 +227,7 @@ export default function RefurbishmentsList() {
               <tr className="border-b border-[--k-border] text-left text-[11px] uppercase tracking-wide text-[--k-muted]">
                 <th className="px-4 py-2">Borne</th>
                 <th className="px-4 py-2">Motif</th>
+                <th className="px-4 py-2">Priorité</th>
                 <th className="px-4 py-2">Opérateur</th>
                 <th className="px-4 py-2">Créé par</th>
                 <th className="px-4 py-2 text-right">Comp.</th>
@@ -233,13 +238,13 @@ export default function RefurbishmentsList() {
             <tbody>
               {listQ.isLoading ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-[--k-muted]">
+                  <td colSpan={8} className="px-4 py-6 text-[--k-muted]">
                     Chargement…
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-[--k-muted] italic">
+                  <td colSpan={8} className="px-4 py-6 text-[--k-muted] italic">
                     Aucun reconditionnement
                     {hasFilters ? ' pour ces filtres' : ''}.
                   </td>
@@ -263,6 +268,9 @@ export default function RefurbishmentsList() {
                         <div className="truncate text-[--k-text]">
                           {r.reason || <span className="italic text-[--k-muted]">—</span>}
                         </div>
+                      </td>
+                      <td className="px-4 py-2">
+                        <PriorityBadge priority={r.priority} />
                       </td>
                       <td className="px-4 py-2 max-w-[180px]">
                         <OperatorAvatar name={r.operatorName} size="sm" />

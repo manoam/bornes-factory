@@ -19,6 +19,7 @@ import api from '../services/api';
 import QrScannerModal, { type ParsedQr } from '../components/QrScannerModal';
 import OperatorAvatar from '../components/OperatorAvatar';
 import SerialLink from '../components/SerialLink';
+import PriorityBadge from '../components/PriorityBadge';
 
 type Status = 'DRAFT' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 type Disposition = 'STOCK_NEW' | 'STOCK_USED' | 'TO_TEST' | 'SCRAP';
@@ -34,11 +35,14 @@ interface DComponent {
   createdAt: string;
 }
 
+type Priority = 'NORMAL' | 'HIGH' | 'URGENT';
+
 interface Disassembly {
   id: string;
   borneInternalNumber: string;
   sourceApp: string;
   status: Status;
+  priority: Priority;
   reason: string | null;
   operatorId: string | null;
   operatorName: string | null;
@@ -280,9 +284,12 @@ function Header({
                 : 'non résolue'}
           </p>
         </div>
-        <span className={`inline-flex rounded-full px-2.5 py-1 text-[12px] font-semibold ${meta.cls}`}>
-          {meta.label}
-        </span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <PriorityBadge priority={dis.priority} />
+          <span className={`inline-flex rounded-full px-2.5 py-1 text-[12px] font-semibold ${meta.cls}`}>
+            {meta.label}
+          </span>
+        </div>
       </div>
 
       <div>
