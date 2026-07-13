@@ -16,7 +16,7 @@ import { useAuth } from '../contexts/AuthContext';
 import OperatorAvatar from '../components/OperatorAvatar';
 import BorneCell from '../components/BorneCell';
 
-type Status = 'DRAFT' | 'IN_PROGRESS' | 'TESTING' | 'COMPLETED' | 'CANCELLED';
+type Status = 'DRAFT' | 'IN_PROGRESS' | 'ON_HOLD' | 'TESTING' | 'COMPLETED' | 'CANCELLED';
 
 interface RepairRow {
   id: string;
@@ -45,6 +45,7 @@ interface ListResponse {
 const STATUS_META: Record<Status, { label: string; cls: string }> = {
   DRAFT: { label: 'Brouillon', cls: 'bg-slate-100 text-slate-700' },
   IN_PROGRESS: { label: 'En cours', cls: 'bg-amber-100 text-amber-800' },
+  ON_HOLD: { label: 'En attente', cls: 'bg-orange-100 text-orange-800' },
   TESTING: { label: 'En test', cls: 'bg-blue-100 text-blue-800' },
   COMPLETED: { label: 'Terminé', cls: 'bg-emerald-100 text-emerald-800' },
   CANCELLED: { label: 'Annulé', cls: 'bg-rose-100 text-rose-800' },
@@ -53,6 +54,7 @@ const STATUS_META: Record<Status, { label: string; cls: string }> = {
 const STATUS_KPIS: { status: Status; label: string; Icon: typeof Stethoscope; color: string }[] = [
   { status: 'DRAFT', label: 'Brouillons', Icon: Stethoscope, color: 'text-slate-600' },
   { status: 'IN_PROGRESS', label: 'En cours', Icon: Wrench, color: 'text-amber-600' },
+  { status: 'ON_HOLD', label: 'En attente', Icon: Wrench, color: 'text-orange-600' },
   { status: 'TESTING', label: 'En test', Icon: Beaker, color: 'text-blue-600' },
   { status: 'COMPLETED', label: 'Terminés', Icon: CheckCircle2, color: 'text-emerald-600' },
   { status: 'CANCELLED', label: 'Annulés', Icon: XCircle, color: 'text-rose-600' },
@@ -140,7 +142,7 @@ export default function RepairOrdersList() {
       </header>
 
       {/* KPIs cliquables */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {STATUS_KPIS.map(({ status, label, Icon, color }) => {
           const active = selectedStatuses.has(status);
           return (

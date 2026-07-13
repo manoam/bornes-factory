@@ -21,7 +21,7 @@ import QrScannerModal, { type ParsedQr } from '../components/QrScannerModal';
 import OperatorAvatar from '../components/OperatorAvatar';
 import SerialLink from '../components/SerialLink';
 
-type Status = 'DRAFT' | 'IN_PROGRESS' | 'TESTING' | 'COMPLETED' | 'CANCELLED';
+type Status = 'DRAFT' | 'IN_PROGRESS' | 'ON_HOLD' | 'TESTING' | 'COMPLETED' | 'CANCELLED';
 type Action = 'REMOVED' | 'INSTALLED';
 type Disposition = 'TO_TEST' | 'SCRAP' | 'STOCK_USED';
 
@@ -91,6 +91,7 @@ interface RepairEvent {
 const STATUS_META: Record<Status, { label: string; cls: string }> = {
   DRAFT: { label: 'Brouillon', cls: 'bg-slate-100 text-slate-700' },
   IN_PROGRESS: { label: 'En cours', cls: 'bg-amber-100 text-amber-800' },
+  ON_HOLD: { label: 'En attente', cls: 'bg-orange-100 text-orange-800' },
   TESTING: { label: 'En test', cls: 'bg-blue-100 text-blue-800' },
   COMPLETED: { label: 'Terminé', cls: 'bg-emerald-100 text-emerald-800' },
   CANCELLED: { label: 'Annulé', cls: 'bg-rose-100 text-rose-800' },
@@ -721,9 +722,24 @@ function AddForm({
       quantity: number;
       disposition?: Disposition;
     }) => {
+      // V2 : le backend attend { kind, partState } et non plus
+      // { action, disposition }. Ce mapping compat sera vire au Lot 4
+      // avec la refonte du formulaire.
+      const partState: 'OK' | 'DEFECTIVE' | 'TO_CHECK' =
+        action === 'INSTALLED'
+          ? 'OK'
+          : payload.disposition === 'SCRAP'
+            ? 'DEFECTIVE'
+            : payload.disposition === 'TO_TEST'
+              ? 'TO_CHECK'
+              : 'OK';
       await api.post(`/repair-orders/${repairId}/components`, {
-        action,
-        ...payload,
+        kind: 'REPLACED',
+        productId: payload.productId,
+        productReference: payload.productReference,
+        serialNumber: payload.serialNumber,
+        quantity: payload.quantity,
+        partState,
       });
     },
     onSuccess: onDone,
@@ -989,16 +1005,45 @@ function humanizeEvent(e: RepairEvent): string {
       return `Composant installé : ${p.productRef}${
         p.serialNumber ? ` (SN ${p.serialNumber})` : ''
       }`;
+    case 'COMPONENT_ADDED': {
+      const kindLabel =
+        p.kind === 'REPLACED'
+          ? 'remplacé'
+          : p.kind === 'CHECKED'
+            ? 'contrôlé'
+            : p.kind === 'DIAGNOSED'
+              ? 'en diagnostic'
+              : String(p.kind);
+      return `Composant ${kindLabel} : ${p.productRef}${
+        p.serialNumber ? ` (SN ${p.serialNumber})` : ''
+      }${p.partState ? ` → ${p.partState}` : ''}`;
+    }
     case 'COMPONENT_REVERTED':
       return `Composant retiré de la liste : ${p.productRef}`;
     case 'NOTES_UPDATED':
       return 'Notes mises à jour';
+    case 'REPORT_UPDATED':
+      return 'Compte-rendu mis à jour';
+    case 'PRIORITY_UPDATED':
+      return `Priorité : ${p.from ?? '—'} → ${p.to}`;
+    case 'DIAGNOSIS_SOURCE_UPDATED':
+      return 'Source du diagnostic mise à jour';
+    case 'ON_HOLD':
+      return `Mis en attente${p.reason ? ` : ${p.reason}` : ''}`;
+    case 'RESUMED':
+      return 'Repris';
+    case 'ATTACHMENT_ADDED':
+      return `Pièce jointe ajoutée${p.filename ? ` : ${p.filename}` : ''}`;
+    case 'ATTACHMENT_REMOVED':
+      return `Pièce jointe supprimée${p.filename ? ` : ${p.filename}` : ''}`;
     case 'QUALITY_CHECKED':
       return `Contrôle qualité validé : ${p.checkId}`;
     case 'QUALITY_UNCHECKED':
       return `Contrôle qualité retiré : ${p.checkId}`;
     case 'COMPLETED':
-      return `Réparation validée (${p.componentsCount ?? 0} composant(s))`;
+      return `Réparation validée (${p.componentsCount ?? 0} composant(s))${
+        p.finalResult ? ` — ${p.finalResult}` : ''
+      }`;
     case 'CANCELLED':
       return `Annulé${p.reason ? ` : ${p.reason}` : ''}`;
     default:
