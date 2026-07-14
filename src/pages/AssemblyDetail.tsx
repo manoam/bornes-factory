@@ -486,9 +486,8 @@ function ChecklistSection({
 }) {
   const editable = status === 'DRAFT' || status === 'IN_PROGRESS';
 
-  // V2 — on groupe les lignes par partType (Equipement / Protection / Visserie)
-  // et on cache celles sans partType. Ordre metier fixe : gros modules d'abord,
-  // puis protections, puis visserie.
+  // On groupe les lignes par partType (Equipement / Protection / Visserie)
+  // et on cache celles sans partType. Ordre metier fixe (voir PART_TYPE_ORDER).
   const groups = new Map<PartType, ChecklistLine[]>();
   for (const line of checklist.lines) {
     if (!line.partType) continue; // decision explicite : cachees
@@ -499,6 +498,40 @@ function ChecklistSection({
   const sortedGroupTypes = PART_TYPE_ORDER.filter((t) => groups.has(t));
   const visibleCount = Array.from(groups.values()).reduce((s, arr) => s + arr.length, 0);
   const hiddenCount = checklist.lines.length - visibleCount;
+
+  // Tab actif, initialise sur le premier type disponible. On persiste en
+  // localStorage pour que l'operateur retrouve son onglet apres reload.
+  const [activeTab, setActiveTab] = useState<PartType | null>(() => {
+    try {
+      const v = localStorage.getItem('assembly_checklist_tab');
+      if (v && PART_TYPE_ORDER.includes(v as PartType)) return v as PartType;
+    } catch {
+      /* ignore */
+    }
+    return sortedGroupTypes[0] || null;
+  });
+  useEffect(() => {
+    // Si l'onglet actif n'est plus dispo (chargement initial ou changement
+    // de BOM), on retombe sur le premier disponible.
+    if (activeTab && !groups.has(activeTab) && sortedGroupTypes.length > 0) {
+      setActiveTab(sortedGroupTypes[0]);
+    } else if (!activeTab && sortedGroupTypes.length > 0) {
+      setActiveTab(sortedGroupTypes[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortedGroupTypes.join(',')]);
+  useEffect(() => {
+    if (activeTab) {
+      try {
+        localStorage.setItem('assembly_checklist_tab', activeTab);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [activeTab]);
+
+  const activeGroup = activeTab ? groups.get(activeTab) || [] : [];
+  const activeComplete = activeGroup.filter((l) => l.complete).length;
 
   return (
     <section className="rounded-xl border border-[--k-border] bg-[--k-surface]">
@@ -519,21 +552,57 @@ function ChecklistSection({
           )}
         </div>
       ) : (
-        sortedGroupTypes.map((groupType) => {
-          const groupLines = groups.get(groupType)!;
-          const groupComplete = groupLines.filter((l) => l.complete).length;
-          return (
-            <div key={groupType} className="border-b border-[--k-border] last:border-b-0">
-              <div className="flex items-center justify-between gap-2 bg-[--k-surface-2]/40 px-4 py-2">
-                <h3 className="text-[12px] font-semibold uppercase tracking-wide text-[--k-text]">
-                  {PART_TYPE_LABEL[groupType]}
-                </h3>
+        <>
+          {/* Barre de tabs */}
+          <div className="flex items-center gap-1 border-b border-[--k-border] px-4">
+            {sortedGroupTypes.map((t) => {
+              const arr = groups.get(t)!;
+              const complete = arr.filter((l) => l.complete).length;
+              const isDone = complete === arr.length;
+              const active = activeTab === t;
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setActiveTab(t)}
+                  className={`relative px-3 py-2 text-[13px] font-medium transition ${
+                    active
+                      ? 'text-[--k-primary] border-b-2 border-[--k-primary] -mb-[1px]'
+                      : 'text-[--k-muted] hover:text-[--k-text]'
+                  }`}
+                >
+                  {PART_TYPE_LABEL[t]}
+                  <span
+                    className={`ml-1.5 inline-flex min-w-[36px] justify-center rounded-full px-1.5 text-[11px] tabular-nums ${
+                      active
+                        ? isDone
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-[--k-primary]/10 text-[--k-primary]'
+                        : isDone
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-[--k-surface-2] text-[--k-muted]'
+                    }`}
+                  >
+                    {complete} / {arr.length}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Contenu du tab actif */}
+          {activeTab && (
+            <div>
+              <div className="flex items-center justify-between gap-2 bg-[--k-surface-2]/30 px-4 py-1.5">
+                <span className="text-[11px] uppercase tracking-wide text-[--k-muted]">
+                  {PART_TYPE_LABEL[activeTab]}
+                </span>
                 <span className="text-[11px] text-[--k-muted] tabular-nums">
-                  {groupComplete} / {groupLines.length}
+                  {activeComplete} / {activeGroup.length} complets
                 </span>
               </div>
               <div className="divide-y divide-[--k-border]">
-                {groupLines.map((line) => (
+                {activeGroup.map((line) => (
                   <ChecklistRow
                     key={line.productId}
                     assemblyId={assemblyId}
@@ -544,8 +613,8 @@ function ChecklistSection({
                 ))}
               </div>
             </div>
-          );
-        })
+          )}
+        </>
       )}
 
       {hiddenCount > 0 && sortedGroupTypes.length > 0 && (
