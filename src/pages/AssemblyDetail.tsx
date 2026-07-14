@@ -46,16 +46,27 @@ interface AssemblyComponent {
   installedAt: string | null;
 }
 
+type PartType = 'EQUIPMENT' | 'PROTECTION' | 'HARDWARE';
+
+const PART_TYPE_LABEL: Record<PartType, string> = {
+  EQUIPMENT: 'Équipement',
+  PROTECTION: 'Protection',
+  HARDWARE: 'Visserie',
+};
+// Ordre metier fixe : gros modules d'abord, puis protections, puis visserie.
+const PART_TYPE_ORDER: PartType[] = ['EQUIPMENT', 'PROTECTION', 'HARDWARE'];
+
 interface ChecklistLine {
   productId: string;
   productReference: string;
   productDescription: string | null;
   /**
-   * Categorie de la piece dans cette BOM (Equipement / Protection / Visserie ...).
-   * Null si l'admin Stock n'a pas encore tague le produit. Les lignes null
-   * sont CACHEES dans la checklist (decision explicite, voir plan V2).
+   * Type de piece (Equipement / Protection / Visserie). Orthogonal a
+   * partCategory qui decrit la localisation (Tete/Pied/Socle). Null si
+   * l'admin Stock n'a pas encore tague le produit — les lignes null sont
+   * CACHEES dans la checklist (decision explicite).
    */
-  category: string | null;
+  partType: PartType | null;
   hasSerialNumber: boolean;
   imageUrl: string | null;
   requiredQty: number;
@@ -475,25 +486,17 @@ function ChecklistSection({
 }) {
   const editable = status === 'DRAFT' || status === 'IN_PROGRESS';
 
-  // V2 — on groupe les lignes par categorie et on cache celles sans categorie.
-  // Ordre metier fixe: Equipement d'abord (gros modules), puis Protection,
-  // puis Visserie (petites pieces). Tout autre nom vient apres, par ordre alpha.
-  const CATEGORY_ORDER = ['Équipement', 'Equipement', 'Protection', 'Visserie'];
-  const groups = new Map<string, ChecklistLine[]>();
+  // V2 — on groupe les lignes par partType (Equipement / Protection / Visserie)
+  // et on cache celles sans partType. Ordre metier fixe : gros modules d'abord,
+  // puis protections, puis visserie.
+  const groups = new Map<PartType, ChecklistLine[]>();
   for (const line of checklist.lines) {
-    if (!line.category) continue; // decision explicite: cachees
-    const arr = groups.get(line.category) || [];
+    if (!line.partType) continue; // decision explicite : cachees
+    const arr = groups.get(line.partType) || [];
     arr.push(line);
-    groups.set(line.category, arr);
+    groups.set(line.partType, arr);
   }
-  const sortedGroupNames = Array.from(groups.keys()).sort((a, b) => {
-    const ia = CATEGORY_ORDER.indexOf(a);
-    const ib = CATEGORY_ORDER.indexOf(b);
-    if (ia !== -1 && ib !== -1) return ia - ib;
-    if (ia !== -1) return -1;
-    if (ib !== -1) return 1;
-    return a.localeCompare(b);
-  });
+  const sortedGroupTypes = PART_TYPE_ORDER.filter((t) => groups.has(t));
   const visibleCount = Array.from(groups.values()).reduce((s, arr) => s + arr.length, 0);
   const hiddenCount = checklist.lines.length - visibleCount;
 
@@ -508,22 +511,22 @@ function ChecklistSection({
         </span>
       </header>
 
-      {sortedGroupNames.length === 0 ? (
+      {sortedGroupTypes.length === 0 ? (
         <div className="px-4 py-6 text-[13px] text-[--k-muted] italic text-center">
-          Aucun composant catégorisé dans la nomenclature.
+          Aucun composant avec type de pièce défini.
           {hiddenCount > 0 && (
-            <span> {hiddenCount} pièce{hiddenCount > 1 ? 's' : ''} sans catégorie masquée{hiddenCount > 1 ? 's' : ''} — à taguer côté Stock.</span>
+            <span> {hiddenCount} pièce{hiddenCount > 1 ? 's' : ''} sans type masquée{hiddenCount > 1 ? 's' : ''} — à taguer côté Stock.</span>
           )}
         </div>
       ) : (
-        sortedGroupNames.map((groupName) => {
-          const groupLines = groups.get(groupName)!;
+        sortedGroupTypes.map((groupType) => {
+          const groupLines = groups.get(groupType)!;
           const groupComplete = groupLines.filter((l) => l.complete).length;
           return (
-            <div key={groupName} className="border-b border-[--k-border] last:border-b-0">
+            <div key={groupType} className="border-b border-[--k-border] last:border-b-0">
               <div className="flex items-center justify-between gap-2 bg-[--k-surface-2]/40 px-4 py-2">
                 <h3 className="text-[12px] font-semibold uppercase tracking-wide text-[--k-text]">
-                  {groupName}
+                  {PART_TYPE_LABEL[groupType]}
                 </h3>
                 <span className="text-[11px] text-[--k-muted] tabular-nums">
                   {groupComplete} / {groupLines.length}
@@ -545,9 +548,9 @@ function ChecklistSection({
         })
       )}
 
-      {hiddenCount > 0 && sortedGroupNames.length > 0 && (
+      {hiddenCount > 0 && sortedGroupTypes.length > 0 && (
         <div className="border-t border-[--k-border] px-4 py-2 bg-amber-50/40 text-[11px] text-amber-800 italic">
-          {hiddenCount} pièce{hiddenCount > 1 ? 's' : ''} sans catégorie masquée{hiddenCount > 1 ? 's' : ''} — à taguer côté Stock pour qu'elle{hiddenCount > 1 ? 's apparaissent' : ' apparaisse'} ici.
+          {hiddenCount} pièce{hiddenCount > 1 ? 's' : ''} sans type masquée{hiddenCount > 1 ? 's' : ''} — à taguer côté Stock (champ « Type de pièce »).
         </div>
       )}
 
@@ -800,7 +803,7 @@ function ReadOnlyChecklistSection({ checklist }: { checklist: ChecklistPayload }
       </header>
       <ul className="divide-y divide-[--k-border]">
         {checklist.lines
-          .filter((line) => !!line.category)
+          .filter((line) => !!line.partType)
           .map((line) => (
             <li key={line.productId} className="px-4 py-2 flex items-center gap-3 text-[13px]">
               <CheckCircle2
@@ -811,9 +814,9 @@ function ReadOnlyChecklistSection({ checklist }: { checklist: ChecklistPayload }
               <span className="flex-1 truncate">
                 {line.productDescription || line.productReference}
               </span>
-              {line.category && (
+              {line.partType && (
                 <span className="text-[10px] text-[--k-muted] uppercase tracking-wide">
-                  {line.category}
+                  {PART_TYPE_LABEL[line.partType]}
                 </span>
               )}
               <span className="text-[--k-muted] tabular-nums">
