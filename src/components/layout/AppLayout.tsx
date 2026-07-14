@@ -2,7 +2,6 @@ import React, { Component, Suspense, useState, useEffect } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
-  ClipboardList,
   Wrench,
   PackageCheck,
   Stethoscope,
@@ -43,8 +42,7 @@ const SIDEBAR_SECTIONS = [
     label: 'Production',
     items: [
       { icon: LayoutDashboard, label: 'Tableau de bord', path: '/', to: '/' },
-      { icon: ClipboardList, label: 'Ordres de fabrication', path: '/production-orders', to: '/production-orders' },
-      { icon: Wrench, label: 'Assemblages', path: '/assemblies', to: '/assemblies' },
+      { icon: Wrench, label: 'Bornes à créer', path: '/assemblies', to: '/assemblies' },
     ],
   },
   {

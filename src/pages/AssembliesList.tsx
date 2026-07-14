@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Search,
   ChevronLeft,
@@ -10,6 +10,7 @@ import {
   Beaker,
   CheckCircle2,
   XCircle,
+  Plus,
 } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -45,7 +46,7 @@ interface AvailableModel {
 }
 
 const STATUS_META: Record<Status, { label: string; cls: string }> = {
-  DRAFT: { label: 'Brouillon', cls: 'bg-slate-100 text-slate-700' },
+  DRAFT: { label: 'À créer', cls: 'bg-slate-100 text-slate-700' },
   IN_PROGRESS: { label: 'En cours', cls: 'bg-amber-100 text-amber-800' },
   TESTING: { label: 'En test', cls: 'bg-blue-100 text-blue-800' },
   COMPLETED: { label: 'Terminé', cls: 'bg-emerald-100 text-emerald-800' },
@@ -53,26 +54,25 @@ const STATUS_META: Record<Status, { label: string; cls: string }> = {
 };
 
 const STATUS_KPIS: { status: Status; label: string; Icon: typeof ClipboardList; color: string }[] = [
-  { status: 'DRAFT', label: 'Brouillons', Icon: ClipboardList, color: 'text-slate-600' },
+  { status: 'DRAFT', label: 'À créer', Icon: ClipboardList, color: 'text-slate-600' },
   { status: 'IN_PROGRESS', label: 'En cours', Icon: PlayCircle, color: 'text-amber-600' },
   { status: 'TESTING', label: 'En test', Icon: Beaker, color: 'text-blue-600' },
-  { status: 'COMPLETED', label: 'Terminés', Icon: CheckCircle2, color: 'text-emerald-600' },
-  { status: 'CANCELLED', label: 'Annulés', Icon: XCircle, color: 'text-rose-600' },
+  { status: 'COMPLETED', label: 'Terminées', Icon: CheckCircle2, color: 'text-emerald-600' },
+  { status: 'CANCELLED', label: 'Annulées', Icon: XCircle, color: 'text-rose-600' },
 ];
 
 const PAGE_SIZE = 50;
 
 export default function AssembliesList() {
   const { user } = useAuth();
+  const qc = useQueryClient();
 
-  // Multi-select des statuts par chips. État local — pas dans l'URL pour
-  // garder la page simple. Pour persister entre tabs il faudrait des
-  // searchParams, on verra si besoin.
   const [selectedStatuses, setSelectedStatuses] = useState<Set<Status>>(new Set());
   const [model, setModel] = useState<string>('');
   const [mine, setMine] = useState(false);
   const [search, setSearch] = useState('');
   const [offset, setOffset] = useState(0);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const queryString = useMemo(() => {
     const sp = new URLSearchParams();
@@ -97,11 +97,30 @@ export default function AssembliesList() {
     queryKey: ['available-models'],
     queryFn: async () => {
       const res = await api.get<{ success: boolean; data: AvailableModel[] }>(
-        '/production-orders/available-models',
+        '/assembly-orders/available-models',
       );
       return res.data.data;
     },
     staleTime: 60_000,
+  });
+
+  const batchM = useMutation({
+    mutationFn: async (payload: {
+      model: string;
+      quantity: number;
+      reason?: string;
+      targetDate?: string;
+    }) => {
+      const res = await api.post<{ success: boolean; data: { id: string } }>(
+        '/assembly-orders/batch',
+        payload,
+      );
+      return res.data.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['assemblies-list'] });
+      setCreateOpen(false);
+    },
   });
 
   const toggleStatus = (s: Status) => {
@@ -133,12 +152,21 @@ export default function AssembliesList() {
 
   return (
     <div className="space-y-4">
-      <header>
-        <h1 className="text-xl font-semibold">Assemblages</h1>
-        <p className="text-[13px] text-[--k-muted]">
-          Toutes les bornes en cours ou terminées. Cliquez sur une ligne pour
-          ouvrir la fiche.
-        </p>
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Bornes à créer</h1>
+          <p className="text-[13px] text-[--k-muted]">
+            Chaque ligne = une borne à assembler. Cliquez pour ouvrir la fiche.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setCreateOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-[--k-primary] text-white px-3 py-2 text-[13px] font-medium"
+        >
+          <Plus className="h-4 w-4" />
+          Nouvelle commande
+        </button>
       </header>
 
       {/* KPIs — toujours visibles, chacun cliquable pour filtrer */}
@@ -171,7 +199,7 @@ export default function AssembliesList() {
       </div>
 
       {/* Filtres */}
-      <section className="rounded-xl border border-[--k-border] bg-[--k-surface] p-3 space-y-3">
+      <section className="rounded-xl border border-[--k-border] bg-[--k-surface] p-3">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[--k-muted]" />
@@ -232,19 +260,19 @@ export default function AssembliesList() {
       {/* Liste */}
       <section className="rounded-xl border border-[--k-border] bg-[--k-surface] overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-[13px]">
+          <table className="w-full text-[13px] table-zebra">
             <thead>
               <tr className="border-b border-[--k-border] text-left text-[11px] uppercase tracking-wide text-[--k-muted]">
                 <th className="px-4 py-2">N° interne</th>
                 <th className="px-4 py-2">Modèle</th>
-                <th className="px-4 py-2">Statut</th>
                 <th className="px-4 py-2">Opérateur</th>
                 <th className="px-4 py-2 text-right">Composants</th>
                 <th className="px-4 py-2">Démarré</th>
                 <th className="px-4 py-2">Terminé</th>
+                <th className="px-4 py-2">État</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[--k-border]">
+            <tbody>
               {listQ.isLoading ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-6 text-[--k-muted]">
@@ -254,14 +282,14 @@ export default function AssembliesList() {
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-6 text-[--k-muted] italic">
-                    Aucun assemblage{hasFilters ? ' pour ces filtres' : ''}.
+                    Aucune borne{hasFilters ? ' pour ces filtres' : ''}.
                   </td>
                 </tr>
               ) : (
                 rows.map((r) => {
                   const meta = STATUS_META[r.status];
                   return (
-                    <tr key={r.id} className="hover:bg-[--k-surface-2]/40">
+                    <tr key={r.id}>
                       <td className="px-4 py-2 font-mono">
                         <Link
                           to={`/assemblies/${r.id}`}
@@ -273,22 +301,9 @@ export default function AssembliesList() {
                         </Link>
                       </td>
                       <td className="px-4 py-2">
-                        <div className="font-medium truncate max-w-[200px]">
+                        <div className="font-medium truncate max-w-[220px]">
                           {r.productionOrder.model}
                         </div>
-                        <Link
-                          to={`/production-orders/${r.productionOrder.id}`}
-                          className="text-[11px] text-[--k-muted] hover:text-[--k-primary]"
-                        >
-                          OF de {r.productionOrder.quantity} bornes
-                        </Link>
-                      </td>
-                      <td className="px-4 py-2">
-                        <span
-                          className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${meta.cls}`}
-                        >
-                          {meta.label}
-                        </span>
                       </td>
                       <td className="px-4 py-2 max-w-[180px]">
                         <OperatorAvatar name={r.operatorName} size="sm" />
@@ -307,6 +322,13 @@ export default function AssembliesList() {
                         {r.completedAt
                           ? new Date(r.completedAt).toLocaleDateString('fr-FR')
                           : '—'}
+                      </td>
+                      <td className="px-4 py-2">
+                        <span
+                          className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${meta.cls}`}
+                        >
+                          {meta.label}
+                        </span>
                       </td>
                     </tr>
                   );
@@ -345,6 +367,149 @@ export default function AssembliesList() {
           </div>
         )}
       </section>
+
+      {createOpen && (
+        <BatchCreateModal
+          models={modelsQ.data || []}
+          onClose={() => setCreateOpen(false)}
+          onSubmit={(payload) => batchM.mutate(payload)}
+          submitting={batchM.isPending}
+          error={
+            (batchM.error as { response?: { data?: { error?: string } } } | null)?.response
+              ?.data?.error || null
+          }
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Modale de commande groupée ─────────────────────────────────────────
+
+function BatchCreateModal({
+  models,
+  onClose,
+  onSubmit,
+  submitting,
+  error,
+}: {
+  models: AvailableModel[];
+  onClose: () => void;
+  onSubmit: (payload: {
+    model: string;
+    quantity: number;
+    reason?: string;
+    targetDate?: string;
+  }) => void;
+  submitting: boolean;
+  error: string | null;
+}) {
+  const [model, setModel] = useState('');
+  const [quantity, setQuantity] = useState(1);
+  const [reason, setReason] = useState('');
+  const [targetDate, setTargetDate] = useState('');
+
+  const canSubmit = !!model && quantity >= 1 && quantity <= 100 && !submitting;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-[--k-surface] rounded-xl w-full max-w-md shadow-xl">
+        <div className="px-4 py-3 border-b border-[--k-border] flex items-center justify-between">
+          <h2 className="font-semibold">Ajouter des bornes à créer</h2>
+          <button onClick={onClose} className="text-[--k-muted]" type="button">
+            ×
+          </button>
+        </div>
+        <div className="p-4 space-y-3">
+          <div>
+            <label className="block text-[12px] font-medium text-[--k-muted] mb-1">
+              Gamme <span className="text-rose-600">*</span>
+            </label>
+            <select
+              autoFocus
+              className="input-field"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+            >
+              <option value="">Choisir une gamme…</option>
+              {models.map((m) => (
+                <option key={m.id} value={m.name}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium text-[--k-muted] mb-1">
+              Quantité <span className="text-rose-600">*</span>
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={100}
+              className="input-field"
+              value={quantity}
+              onChange={(e) =>
+                setQuantity(Math.max(1, Math.min(100, Number(e.target.value) || 1)))
+              }
+            />
+            <p className="text-[11px] text-[--k-muted] mt-1">
+              Crée {quantity} borne{quantity > 1 ? 's' : ''} à créer, en statut « À créer ».
+            </p>
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium text-[--k-muted] mb-1">
+              Motif (optionnel)
+            </label>
+            <input
+              className="input-field"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="ex : saison été, commande client X…"
+            />
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium text-[--k-muted] mb-1">
+              Date cible (optionnel)
+            </label>
+            <input
+              type="date"
+              className="input-field"
+              value={targetDate}
+              onChange={(e) => setTargetDate(e.target.value)}
+            />
+          </div>
+          {error && (
+            <div className="rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-[12px] text-rose-700">
+              {error}
+            </div>
+          )}
+        </div>
+        <div className="px-4 py-3 border-t border-[--k-border] flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-[--k-border] px-3 py-2 text-[13px]"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              onSubmit({
+                model,
+                quantity,
+                reason: reason.trim() || undefined,
+                targetDate: targetDate ? new Date(targetDate).toISOString() : undefined,
+              })
+            }
+            disabled={!canSubmit}
+            className="rounded-lg bg-[--k-primary] text-white px-3 py-2 text-[13px] font-medium disabled:opacity-50"
+          >
+            {submitting ? 'Création…' : 'Créer les bornes'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

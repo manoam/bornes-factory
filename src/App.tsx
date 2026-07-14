@@ -3,8 +3,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import AppLayout from './components/layout/AppLayout';
 import Dashboard from './pages/Dashboard';
-import ProductionOrders from './pages/ProductionOrders';
-import ProductionOrderDetail from './pages/ProductionOrderDetail';
 import AssembliesList from './pages/AssembliesList';
 import AssemblyDetail from './pages/AssemblyDetail';
 import ProducedBornes from './pages/ProducedBornes';
@@ -44,8 +42,6 @@ export default function App() {
             <Routes>
               <Route element={<AppLayout />}>
                 <Route index element={<Dashboard />} />
-                <Route path="production-orders" element={<ProductionOrders />} />
-                <Route path="production-orders/:id" element={<ProductionOrderDetail />} />
                 <Route path="assemblies" element={<AssembliesList />} />
                 <Route path="produced-bornes" element={<ProducedBornes />} />
                 <Route path="produced-bornes/:id" element={<ProducedBorneDetail />} />

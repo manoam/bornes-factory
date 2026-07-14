@@ -81,7 +81,7 @@ export default function Dashboard() {
             Icon={ClipboardList}
             color="text-blue-700"
             bg="bg-blue-50"
-            to="/production-orders"
+            to="/assemblies"
           />
           <Kpi
             label="En atelier"
@@ -143,7 +143,7 @@ export default function Dashboard() {
 
       {/* Raccourcis */}
       <section className="flex flex-wrap gap-2">
-        <QuickAction to="/production-orders" Icon={Plus} label="Nouvel OF" primary />
+        <QuickAction to="/assemblies" Icon={Plus} label="Nouvelle commande" primary />
         <QuickAction to="/assemblies?mine=true" Icon={Wrench} label="Mon atelier" />
         <QuickAction to="/produced-bornes" Icon={PackageCheck} label="Bornes produites" />
       </section>
@@ -371,8 +371,8 @@ function RecentOrders() {
   return (
     <section className="rounded-xl border border-[--k-border] bg-[--k-surface]">
       <header className="px-4 py-3 border-b border-[--k-border] flex items-center justify-between">
-        <h2 className="text-[14px] font-semibold">Derniers ordres de fabrication</h2>
-        <Link to="/production-orders" className="text-[12px] text-[--k-primary]">
+        <h2 className="text-[14px] font-semibold">Dernières commandes</h2>
+        <Link to="/assemblies" className="text-[12px] text-[--k-primary]">
           Tout voir →
         </Link>
       </header>
@@ -382,14 +382,14 @@ function RecentOrders() {
         <div className="p-6 text-center">
           <Factory className="h-6 w-6 text-[--k-muted] mx-auto mb-2" />
           <p className="text-[13px] text-[--k-muted] italic">
-            Aucun ordre pour l'instant.
+            Aucune commande pour l'instant.
           </p>
           <Link
-            to="/production-orders"
+            to="/assemblies"
             className="mt-2 inline-flex items-center gap-1 text-[12px] text-[--k-primary]"
           >
             <Plus className="h-3 w-3" />
-            Créer le premier
+            Créer la première
           </Link>
         </div>
       ) : (
@@ -397,12 +397,12 @@ function RecentOrders() {
           {orders.map((o) => (
             <li key={o.id}>
               <Link
-                to={`/production-orders/${o.id}`}
+                to={`/assemblies?model=${encodeURIComponent(o.model)}`}
                 className="flex items-center gap-3 px-4 py-2.5 hover:bg-[--k-surface-2]"
               >
                 <span className="font-medium flex-1 truncate">{o.model}</span>
                 <span className="text-[12px] text-[--k-muted]">
-                  {o.quantity} borne{o.quantity > 1 ? 's' : ''} · {o._count?.assemblyOrders ?? 0} assemblées
+                  {o.quantity} borne{o.quantity > 1 ? 's' : ''} · {o._count?.assemblyOrders ?? 0} à créer
                 </span>
                 <span
                   className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
