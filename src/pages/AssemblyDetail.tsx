@@ -50,6 +50,12 @@ interface ChecklistLine {
   productId: string;
   productReference: string;
   productDescription: string | null;
+  /**
+   * Categorie de la piece dans cette BOM (Equipement / Protection / Visserie ...).
+   * Null si l'admin Stock n'a pas encore tague le produit. Les lignes null
+   * sont CACHEES dans la checklist (decision explicite, voir plan V2).
+   */
+  category: string | null;
   hasSerialNumber: boolean;
   imageUrl: string | null;
   requiredQty: number;
@@ -469,28 +475,81 @@ function ChecklistSection({
 }) {
   const editable = status === 'DRAFT' || status === 'IN_PROGRESS';
 
+  // V2 — on groupe les lignes par categorie et on cache celles sans categorie.
+  // Ordre metier fixe: Equipement d'abord (gros modules), puis Protection,
+  // puis Visserie (petites pieces). Tout autre nom vient apres, par ordre alpha.
+  const CATEGORY_ORDER = ['Équipement', 'Equipement', 'Protection', 'Visserie'];
+  const groups = new Map<string, ChecklistLine[]>();
+  for (const line of checklist.lines) {
+    if (!line.category) continue; // decision explicite: cachees
+    const arr = groups.get(line.category) || [];
+    arr.push(line);
+    groups.set(line.category, arr);
+  }
+  const sortedGroupNames = Array.from(groups.keys()).sort((a, b) => {
+    const ia = CATEGORY_ORDER.indexOf(a);
+    const ib = CATEGORY_ORDER.indexOf(b);
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;
+    if (ib !== -1) return 1;
+    return a.localeCompare(b);
+  });
+  const visibleCount = Array.from(groups.values()).reduce((s, arr) => s + arr.length, 0);
+  const hiddenCount = checklist.lines.length - visibleCount;
+
   return (
     <section className="rounded-xl border border-[--k-border] bg-[--k-surface]">
       <header className="px-4 py-3 border-b border-[--k-border] flex items-center justify-between">
         <h2 className="text-[14px] font-semibold">
-          Composants à installer ({checklist.lines.length})
+          Composants à installer ({visibleCount})
         </h2>
         <span className="text-[12px] text-[--k-muted] tabular-nums">
           {checklist.completeCount} / {checklist.requiredCount} complets
         </span>
       </header>
 
-      <div className="divide-y divide-[--k-border]">
-        {checklist.lines.map((line) => (
-          <ChecklistRow
-            key={line.productId}
-            assemblyId={assemblyId}
-            line={line}
-            editable={editable}
-            onChanged={onChanged}
-          />
-        ))}
-      </div>
+      {sortedGroupNames.length === 0 ? (
+        <div className="px-4 py-6 text-[13px] text-[--k-muted] italic text-center">
+          Aucun composant catégorisé dans la nomenclature.
+          {hiddenCount > 0 && (
+            <span> {hiddenCount} pièce{hiddenCount > 1 ? 's' : ''} sans catégorie masquée{hiddenCount > 1 ? 's' : ''} — à taguer côté Stock.</span>
+          )}
+        </div>
+      ) : (
+        sortedGroupNames.map((groupName) => {
+          const groupLines = groups.get(groupName)!;
+          const groupComplete = groupLines.filter((l) => l.complete).length;
+          return (
+            <div key={groupName} className="border-b border-[--k-border] last:border-b-0">
+              <div className="flex items-center justify-between gap-2 bg-[--k-surface-2]/40 px-4 py-2">
+                <h3 className="text-[12px] font-semibold uppercase tracking-wide text-[--k-text]">
+                  {groupName}
+                </h3>
+                <span className="text-[11px] text-[--k-muted] tabular-nums">
+                  {groupComplete} / {groupLines.length}
+                </span>
+              </div>
+              <div className="divide-y divide-[--k-border]">
+                {groupLines.map((line) => (
+                  <ChecklistRow
+                    key={line.productId}
+                    assemblyId={assemblyId}
+                    line={line}
+                    editable={editable}
+                    onChanged={onChanged}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })
+      )}
+
+      {hiddenCount > 0 && sortedGroupNames.length > 0 && (
+        <div className="border-t border-[--k-border] px-4 py-2 bg-amber-50/40 text-[11px] text-amber-800 italic">
+          {hiddenCount} pièce{hiddenCount > 1 ? 's' : ''} sans catégorie masquée{hiddenCount > 1 ? 's' : ''} — à taguer côté Stock pour qu'elle{hiddenCount > 1 ? 's apparaissent' : ' apparaisse'} ici.
+        </div>
+      )}
 
       {checklist.extras.length > 0 && (
         <div className="border-t border-[--k-border] px-4 py-3">
@@ -740,21 +799,28 @@ function ReadOnlyChecklistSection({ checklist }: { checklist: ChecklistPayload }
         <h2 className="text-[14px] font-semibold">Composants installés</h2>
       </header>
       <ul className="divide-y divide-[--k-border]">
-        {checklist.lines.map((line) => (
-          <li key={line.productId} className="px-4 py-2 flex items-center gap-3 text-[13px]">
-            <CheckCircle2
-              className={`h-4 w-4 ${
-                line.complete ? 'text-emerald-600' : 'text-[--k-muted]'
-              }`}
-            />
-            <span className="flex-1 truncate">
-              {line.productDescription || line.productReference}
-            </span>
-            <span className="text-[--k-muted] tabular-nums">
-              {line.installedQty} / {line.requiredQty}
-            </span>
-          </li>
-        ))}
+        {checklist.lines
+          .filter((line) => !!line.category)
+          .map((line) => (
+            <li key={line.productId} className="px-4 py-2 flex items-center gap-3 text-[13px]">
+              <CheckCircle2
+                className={`h-4 w-4 ${
+                  line.complete ? 'text-emerald-600' : 'text-[--k-muted]'
+                }`}
+              />
+              <span className="flex-1 truncate">
+                {line.productDescription || line.productReference}
+              </span>
+              {line.category && (
+                <span className="text-[10px] text-[--k-muted] uppercase tracking-wide">
+                  {line.category}
+                </span>
+              )}
+              <span className="text-[--k-muted] tabular-nums">
+                {line.installedQty} / {line.requiredQty}
+              </span>
+            </li>
+          ))}
         {checklist.extras.map((c) => (
           <li key={c.id} className="px-4 py-2 flex items-center gap-3 text-[13px]">
             <Search className="h-4 w-4 text-[--k-muted]" />
