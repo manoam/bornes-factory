@@ -487,50 +487,37 @@ function ChecklistSection({
   const editable = status === 'DRAFT' || status === 'IN_PROGRESS';
 
   // On groupe les lignes par partType (Equipement / Protection / Visserie)
-  // et on cache celles sans partType. Ordre metier fixe (voir PART_TYPE_ORDER).
+  // et on cache celles sans partType. Les 3 tabs sont TOUJOURS affiches
+  // (meme vides) pour que l'operateur voie la structure attendue.
   const groups = new Map<PartType, ChecklistLine[]>();
+  for (const t of PART_TYPE_ORDER) groups.set(t, []);
   for (const line of checklist.lines) {
     if (!line.partType) continue; // decision explicite : cachees
-    const arr = groups.get(line.partType) || [];
-    arr.push(line);
-    groups.set(line.partType, arr);
+    groups.get(line.partType)!.push(line);
   }
-  const sortedGroupTypes = PART_TYPE_ORDER.filter((t) => groups.has(t));
   const visibleCount = Array.from(groups.values()).reduce((s, arr) => s + arr.length, 0);
   const hiddenCount = checklist.lines.length - visibleCount;
 
-  // Tab actif, initialise sur le premier type disponible. On persiste en
-  // localStorage pour que l'operateur retrouve son onglet apres reload.
-  const [activeTab, setActiveTab] = useState<PartType | null>(() => {
+  // Tab actif : par defaut le premier type qui contient qqch, sinon
+  // simplement le premier (EQUIPMENT). Persiste en localStorage.
+  const [activeTab, setActiveTab] = useState<PartType>(() => {
     try {
       const v = localStorage.getItem('assembly_checklist_tab');
       if (v && PART_TYPE_ORDER.includes(v as PartType)) return v as PartType;
     } catch {
       /* ignore */
     }
-    return sortedGroupTypes[0] || null;
+    return PART_TYPE_ORDER.find((t) => (groups.get(t) || []).length > 0) || PART_TYPE_ORDER[0];
   });
   useEffect(() => {
-    // Si l'onglet actif n'est plus dispo (chargement initial ou changement
-    // de BOM), on retombe sur le premier disponible.
-    if (activeTab && !groups.has(activeTab) && sortedGroupTypes.length > 0) {
-      setActiveTab(sortedGroupTypes[0]);
-    } else if (!activeTab && sortedGroupTypes.length > 0) {
-      setActiveTab(sortedGroupTypes[0]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sortedGroupTypes.join(',')]);
-  useEffect(() => {
-    if (activeTab) {
-      try {
-        localStorage.setItem('assembly_checklist_tab', activeTab);
-      } catch {
-        /* ignore */
-      }
+    try {
+      localStorage.setItem('assembly_checklist_tab', activeTab);
+    } catch {
+      /* ignore */
     }
   }, [activeTab]);
 
-  const activeGroup = activeTab ? groups.get(activeTab) || [] : [];
+  const activeGroup = groups.get(activeTab) || [];
   const activeComplete = activeGroup.filter((l) => l.complete).length;
 
   return (
@@ -544,80 +531,78 @@ function ChecklistSection({
         </span>
       </header>
 
-      {sortedGroupTypes.length === 0 ? (
-        <div className="px-4 py-6 text-[13px] text-[--k-muted] italic text-center">
-          Aucun composant avec type de pièce défini.
-          {hiddenCount > 0 && (
-            <span> {hiddenCount} pièce{hiddenCount > 1 ? 's' : ''} sans type masquée{hiddenCount > 1 ? 's' : ''} — à taguer côté Stock.</span>
-          )}
+      {/* Barre de tabs — toujours affichee, meme si un ou plusieurs tabs sont vides */}
+      <div className="flex items-center gap-1 border-b border-[--k-border] px-4">
+        {PART_TYPE_ORDER.map((t) => {
+          const arr = groups.get(t) || [];
+          const complete = arr.filter((l) => l.complete).length;
+          const isEmpty = arr.length === 0;
+          const isDone = !isEmpty && complete === arr.length;
+          const active = activeTab === t;
+          return (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setActiveTab(t)}
+              className={`relative px-3 py-2 text-[13px] font-medium transition ${
+                active
+                  ? 'text-[--k-primary] border-b-2 border-[--k-primary] -mb-[1px]'
+                  : isEmpty
+                    ? 'text-[--k-muted]/60 hover:text-[--k-text]'
+                    : 'text-[--k-muted] hover:text-[--k-text]'
+              }`}
+            >
+              {PART_TYPE_LABEL[t]}
+              <span
+                className={`ml-1.5 inline-flex min-w-[36px] justify-center rounded-full px-1.5 text-[11px] tabular-nums ${
+                  active
+                    ? isDone
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-[--k-primary]/10 text-[--k-primary]'
+                    : isDone
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : isEmpty
+                        ? 'bg-[--k-surface-2] text-[--k-muted]/60'
+                        : 'bg-[--k-surface-2] text-[--k-muted]'
+                }`}
+              >
+                {complete} / {arr.length}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Contenu du tab actif */}
+      <div>
+        <div className="flex items-center justify-between gap-2 bg-[--k-surface-2]/30 px-4 py-1.5">
+          <span className="text-[11px] uppercase tracking-wide text-[--k-muted]">
+            {PART_TYPE_LABEL[activeTab]}
+          </span>
+          <span className="text-[11px] text-[--k-muted] tabular-nums">
+            {activeComplete} / {activeGroup.length} complets
+          </span>
         </div>
-      ) : (
-        <>
-          {/* Barre de tabs */}
-          <div className="flex items-center gap-1 border-b border-[--k-border] px-4">
-            {sortedGroupTypes.map((t) => {
-              const arr = groups.get(t)!;
-              const complete = arr.filter((l) => l.complete).length;
-              const isDone = complete === arr.length;
-              const active = activeTab === t;
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setActiveTab(t)}
-                  className={`relative px-3 py-2 text-[13px] font-medium transition ${
-                    active
-                      ? 'text-[--k-primary] border-b-2 border-[--k-primary] -mb-[1px]'
-                      : 'text-[--k-muted] hover:text-[--k-text]'
-                  }`}
-                >
-                  {PART_TYPE_LABEL[t]}
-                  <span
-                    className={`ml-1.5 inline-flex min-w-[36px] justify-center rounded-full px-1.5 text-[11px] tabular-nums ${
-                      active
-                        ? isDone
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-[--k-primary]/10 text-[--k-primary]'
-                        : isDone
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'bg-[--k-surface-2] text-[--k-muted]'
-                    }`}
-                  >
-                    {complete} / {arr.length}
-                  </span>
-                </button>
-              );
-            })}
+        {activeGroup.length === 0 ? (
+          <div className="px-4 py-6 text-[13px] text-[--k-muted] italic text-center">
+            Aucun composant « {PART_TYPE_LABEL[activeTab]} » dans cette nomenclature.
           </div>
+        ) : (
+          <div className="divide-y divide-[--k-border]">
+            {activeGroup.map((line) => (
+              <ChecklistRow
+                key={line.productId}
+                assemblyId={assemblyId}
+                line={line}
+                editable={editable}
+                onChanged={onChanged}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
-          {/* Contenu du tab actif */}
-          {activeTab && (
-            <div>
-              <div className="flex items-center justify-between gap-2 bg-[--k-surface-2]/30 px-4 py-1.5">
-                <span className="text-[11px] uppercase tracking-wide text-[--k-muted]">
-                  {PART_TYPE_LABEL[activeTab]}
-                </span>
-                <span className="text-[11px] text-[--k-muted] tabular-nums">
-                  {activeComplete} / {activeGroup.length} complets
-                </span>
-              </div>
-              <div className="divide-y divide-[--k-border]">
-                {activeGroup.map((line) => (
-                  <ChecklistRow
-                    key={line.productId}
-                    assemblyId={assemblyId}
-                    line={line}
-                    editable={editable}
-                    onChanged={onChanged}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {hiddenCount > 0 && sortedGroupTypes.length > 0 && (
+      {hiddenCount > 0 && (
         <div className="border-t border-[--k-border] px-4 py-2 bg-amber-50/40 text-[11px] text-amber-800 italic">
           {hiddenCount} pièce{hiddenCount > 1 ? 's' : ''} sans type masquée{hiddenCount > 1 ? 's' : ''} — à taguer côté Stock (champ « Type de pièce »).
         </div>
