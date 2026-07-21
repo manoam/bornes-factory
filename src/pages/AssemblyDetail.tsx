@@ -16,6 +16,17 @@ import {
   Boxes,
   Shield,
   Wrench,
+  History,
+  PackagePlus,
+  PackageMinus,
+  PackageCheck,
+  Rocket,
+  RefreshCw,
+  FileText,
+  Hash as HashIcon,
+  ShieldCheck,
+  Ban,
+  Flag,
 } from 'lucide-react';
 import api from '../services/api';
 import QrScannerModal, { type ParsedQr } from '../components/QrScannerModal';
@@ -1106,69 +1117,235 @@ function NotesAndQualitySection({
 
 // ─── History section ─────────────────────────────────────────────────────
 
+// Metadata visuelle par type d'evenement — icone + couleur.
+type EventMeta = {
+  Icon: typeof Play;
+  tone: 'primary' | 'success' | 'warning' | 'danger' | 'neutral' | 'info';
+};
+const EVENT_META: Record<string, EventMeta> = {
+  STARTED:            { Icon: Rocket,         tone: 'primary' },
+  STATUS_CHANGED:     { Icon: Flag,           tone: 'info' },
+  COMPONENT_INSTALLED:{ Icon: PackagePlus,    tone: 'success' },
+  COMPONENT_UPDATED:  { Icon: RefreshCw,      tone: 'info' },
+  COMPONENT_REMOVED:  { Icon: PackageMinus,   tone: 'warning' },
+  NOTES_UPDATED:      { Icon: FileText,       tone: 'neutral' },
+  INTERNAL_NUMBER_SET:{ Icon: HashIcon,       tone: 'info' },
+  QUALITY_CHECKED:    { Icon: ShieldCheck,    tone: 'success' },
+  QUALITY_UNCHECKED:  { Icon: ShieldCheck,    tone: 'neutral' },
+  COMPLETED:          { Icon: PackageCheck,   tone: 'success' },
+  CANCELLED:          { Icon: Ban,            tone: 'danger' },
+};
+
+const TONE_CLASSES: Record<EventMeta['tone'], { badge: string; icon: string; ring: string }> = {
+  primary: { badge: 'bg-[--k-primary]/10 text-[--k-primary]', icon: 'text-[--k-primary]', ring: 'ring-[--k-primary]/30' },
+  success: { badge: 'bg-emerald-100 text-emerald-700', icon: 'text-emerald-600', ring: 'ring-emerald-200' },
+  warning: { badge: 'bg-amber-100 text-amber-700', icon: 'text-amber-700', ring: 'ring-amber-200' },
+  danger:  { badge: 'bg-rose-100 text-rose-700', icon: 'text-rose-600', ring: 'ring-rose-200' },
+  info:    { badge: 'bg-sky-100 text-sky-700', icon: 'text-sky-600', ring: 'ring-sky-200' },
+  neutral: { badge: 'bg-slate-100 text-slate-600', icon: 'text-slate-500', ring: 'ring-slate-200' },
+};
+
+function formatDay(iso: string): string {
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+  if (sameDay(d, today)) return "Aujourd'hui";
+  if (sameDay(d, yesterday)) return 'Hier';
+  return d.toLocaleDateString('fr-FR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
 function HistorySection({ events }: { events: AssemblyEvent[] }) {
   if (events.length === 0) {
     return (
-      <section className="rounded-xl border border-[--k-border] bg-[--k-surface] p-4">
-        <h2 className="text-[14px] font-semibold mb-2">Historique</h2>
-        <p className="text-[13px] text-[--k-muted] italic">
-          Aucun événement pour l'instant.
-        </p>
+      <section className="rounded-2xl border border-[--k-border] bg-[--k-surface] p-5 shadow-sm shadow-black/[0.03]">
+        <div className="flex items-center gap-2.5">
+          <div className="h-9 w-9 rounded-xl bg-[--k-surface-2] flex items-center justify-center text-[--k-muted]">
+            <History className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-[15px] font-semibold text-[--k-text]">Historique</h2>
+            <p className="text-[12px] text-[--k-muted]">Aucun événement pour l'instant.</p>
+          </div>
+        </div>
       </section>
     );
   }
+
+  // Groupement par jour (chaine "Aujourd'hui" / "Hier" / date longue).
+  const groups = new Map<string, AssemblyEvent[]>();
+  for (const e of events) {
+    const key = formatDay(e.createdAt);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(e);
+  }
+
   return (
-    <section className="rounded-xl border border-[--k-border] bg-[--k-surface]">
-      <header className="px-4 py-3 border-b border-[--k-border]">
-        <h2 className="text-[14px] font-semibold">Historique</h2>
+    <section className="rounded-2xl border border-[--k-border] bg-[--k-surface] overflow-hidden shadow-sm shadow-black/[0.03]">
+      <header className="flex items-center gap-2.5 px-5 py-3.5 border-b border-[--k-border]">
+        <div className="h-9 w-9 rounded-xl bg-[--k-primary]/10 flex items-center justify-center text-[--k-primary] shrink-0">
+          <History className="h-5 w-5" />
+        </div>
+        <div>
+          <h2 className="text-[15px] font-semibold text-[--k-text]">Historique</h2>
+          <p className="text-[11px] text-[--k-muted]">
+            {events.length} événement{events.length > 1 ? 's' : ''}
+          </p>
+        </div>
       </header>
-      <ul className="divide-y divide-[--k-border]">
-        {events.map((e) => (
-          <li key={e.id} className="px-4 py-2 text-[13px] flex items-start gap-2">
-            <span className="text-[11px] text-[--k-muted] tabular-nums shrink-0 w-32">
-              {new Date(e.createdAt).toLocaleString('fr-FR')}
-            </span>
-            <span className="flex-1">
-              {humanizeEvent(e)}
-              {e.actorName && (
-                <span className="text-[--k-muted]"> · {e.actorName}</span>
-              )}
-            </span>
-          </li>
+      <div className="p-5 space-y-6">
+        {Array.from(groups.entries()).map(([day, dayEvents]) => (
+          <div key={day}>
+            <div className="text-[11px] uppercase tracking-wide font-semibold text-[--k-muted] mb-3">
+              {day}
+            </div>
+            <ol className="relative border-l border-[--k-border] ml-3 space-y-3">
+              {dayEvents.map((e) => {
+                const meta = EVENT_META[e.eventType] || {
+                  Icon: History,
+                  tone: 'neutral' as const,
+                };
+                const tone = TONE_CLASSES[meta.tone];
+                return (
+                  <li key={e.id} className="pl-5 relative">
+                    {/* Puce sur la ligne verticale */}
+                    <span
+                      className={`absolute -left-3 top-0.5 flex h-6 w-6 items-center justify-center rounded-full ${tone.badge} ring-4 ring-[--k-surface]`}
+                    >
+                      <meta.Icon className={`h-3.5 w-3.5 ${tone.icon}`} />
+                    </span>
+                    <div className="flex items-baseline justify-between gap-3 flex-wrap">
+                      <div className="text-[13px] text-[--k-text] leading-snug">
+                        {humanizeEventRich(e)}
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] text-[--k-muted] shrink-0 tabular-nums">
+                        <span>{formatTime(e.createdAt)}</span>
+                        {e.actorName && (
+                          <>
+                            <span>·</span>
+                            <span className="truncate max-w-[140px]">{e.actorName}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
         ))}
-      </ul>
+      </div>
     </section>
   );
 }
 
-function humanizeEvent(e: AssemblyEvent): string {
+/**
+ * Version React (JSX) de humanizeEvent pour pouvoir mettre en emphase
+ * les references/SN/valeurs dans le rendu.
+ */
+function humanizeEventRich(e: AssemblyEvent): React.ReactNode {
   const p = (e.payload || {}) as Record<string, unknown>;
+  const ref = typeof p.productRef === 'string' ? p.productRef : null;
+  const sn = typeof p.serialNumber === 'string' && p.serialNumber ? p.serialNumber : null;
+  const qty = typeof p.quantity === 'number' ? p.quantity : null;
+
+  const RefBadge = ({ v }: { v: string }) => (
+    <span className="font-mono text-[11px] bg-[--k-surface-2] text-[--k-text] px-1.5 py-0.5 rounded">
+      {v}
+    </span>
+  );
+
   switch (e.eventType) {
     case 'STARTED':
-      return "Assemblage démarré";
+      return <span className="font-medium">Assemblage démarré</span>;
     case 'STATUS_CHANGED':
-      return `Statut : ${p.from} → ${p.to}`;
+      return (
+        <>
+          <span className="text-[--k-muted]">Statut :</span>{' '}
+          <span className="font-medium">{String(p.from)}</span>
+          <span className="text-[--k-muted]"> → </span>
+          <span className="font-medium">{String(p.to)}</span>
+        </>
+      );
     case 'COMPONENT_INSTALLED':
-      return `Composant installé : ${p.productRef}${
-        p.serialNumber ? ` (SN ${p.serialNumber})` : ''
-      }`;
+      return (
+        <>
+          <span className="font-medium">Composant installé</span>
+          {ref && <> · <RefBadge v={ref} /></>}
+          {sn && <> · <span className="text-[--k-muted]">SN</span> <RefBadge v={sn} /></>}
+          {qty && qty > 1 && <> · <span className="text-[--k-muted]">×{qty}</span></>}
+        </>
+      );
+    case 'COMPONENT_UPDATED':
+      return (
+        <>
+          <span className="font-medium">Composant modifié</span>
+          {ref && <> · <RefBadge v={ref} /></>}
+          {sn && <> · <span className="text-[--k-muted]">SN</span> <RefBadge v={sn} /></>}
+          {qty && qty > 1 && <> · <span className="text-[--k-muted]">×{qty}</span></>}
+        </>
+      );
     case 'COMPONENT_REMOVED':
-      return `Composant retiré : ${p.productRef}${
-        p.serialNumber ? ` (SN ${p.serialNumber})` : ''
-      }`;
+      return (
+        <>
+          <span className="font-medium">Composant retiré</span>
+          {ref && <> · <RefBadge v={ref} /></>}
+          {sn && <> · <span className="text-[--k-muted]">SN</span> <RefBadge v={sn} /></>}
+        </>
+      );
     case 'NOTES_UPDATED':
-      return 'Notes mises à jour';
+      return <span className="font-medium">Notes mises à jour</span>;
     case 'INTERNAL_NUMBER_SET':
-      return `Numéro interne : ${p.value}`;
+      return (
+        <>
+          <span className="font-medium">N° interne défini</span>
+          {' '}<RefBadge v={String(p.value)} />
+        </>
+      );
     case 'QUALITY_CHECKED':
-      return `Contrôle qualité validé : ${p.checkId}`;
+      return (
+        <>
+          <span className="font-medium">Contrôle qualité validé</span>
+          {' '}<RefBadge v={String(p.checkId)} />
+        </>
+      );
     case 'QUALITY_UNCHECKED':
-      return `Contrôle qualité retiré : ${p.checkId}`;
+      return (
+        <>
+          <span className="font-medium">Contrôle qualité retiré</span>
+          {' '}<RefBadge v={String(p.checkId)} />
+        </>
+      );
     case 'COMPLETED':
-      return `Borne validée (${p.internalNumber}), ${p.movementsCreated} mouvement(s) Stock`;
+      return (
+        <>
+          <span className="font-medium">Borne validée</span>
+          {p.internalNumber ? <> · <RefBadge v={String(p.internalNumber)} /></> : null}
+          {typeof p.movementsCreated === 'number' && p.movementsCreated > 0 && (
+            <span className="text-[--k-muted]"> · {p.movementsCreated} mouvement{p.movementsCreated > 1 ? 's' : ''} Stock</span>
+          )}
+        </>
+      );
     case 'CANCELLED':
-      return `Annulé${p.reason ? ` : ${p.reason}` : ''}`;
+      return (
+        <>
+          <span className="font-medium">Assemblage annulé</span>
+          {p.reason ? <span className="text-[--k-muted]"> · {String(p.reason)}</span> : null}
+        </>
+      );
     default:
-      return e.eventType;
+      return <span className="text-[--k-muted]">{e.eventType}</span>;
   }
 }
