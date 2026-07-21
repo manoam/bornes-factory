@@ -1291,14 +1291,43 @@ function HistorySection({ events }: { events: AssemblyEvent[] }) {
 function humanizeEventRich(e: AssemblyEvent): React.ReactNode {
   const p = (e.payload || {}) as Record<string, unknown>;
   const ref = typeof p.productRef === 'string' ? p.productRef : null;
+  const desc =
+    typeof p.productDescription === 'string' && p.productDescription
+      ? p.productDescription
+      : null;
   const sn = typeof p.serialNumber === 'string' && p.serialNumber ? p.serialNumber : null;
   const qty = typeof p.quantity === 'number' ? p.quantity : null;
 
   const RefBadge = ({ v }: { v: string }) => (
-    <span className="font-mono text-[11px] bg-[--k-surface-2] text-[--k-text] px-1.5 py-0.5 rounded">
+    <span className="font-mono text-[10.5px] bg-[--k-surface-2] text-[--k-muted] px-1.5 py-0.5 rounded">
       {v}
     </span>
   );
+
+  // Rendu principal d'un composant : description en gras si dispo,
+  // sinon reference. La reference apparait en petit a cote quand on a
+  // la description (pour l'operateur qui veut retrouver via la ref).
+  const productLabel = () => {
+    if (desc) {
+      return (
+        <>
+          <span className="font-medium text-[--k-text]">{desc}</span>
+          {ref && (
+            <>
+              {' '}
+              <RefBadge v={ref} />
+            </>
+          )}
+        </>
+      );
+    }
+    if (ref) {
+      return (
+        <span className="font-medium font-mono text-[12px] text-[--k-text]">{ref}</span>
+      );
+    }
+    return null;
+  };
 
   switch (e.eventType) {
     case 'STARTED':
@@ -1315,8 +1344,7 @@ function humanizeEventRich(e: AssemblyEvent): React.ReactNode {
     case 'COMPONENT_INSTALLED':
       return (
         <>
-          <span className="font-medium">Composant installé</span>
-          {ref && <> · <RefBadge v={ref} /></>}
+          <span className="text-[--k-muted]">Installé :</span> {productLabel()}
           {sn && <> · <span className="text-[--k-muted]">SN</span> <RefBadge v={sn} /></>}
           {qty && qty > 1 && <> · <span className="text-[--k-muted]">×{qty}</span></>}
         </>
@@ -1324,8 +1352,7 @@ function humanizeEventRich(e: AssemblyEvent): React.ReactNode {
     case 'COMPONENT_UPDATED':
       return (
         <>
-          <span className="font-medium">Composant modifié</span>
-          {ref && <> · <RefBadge v={ref} /></>}
+          <span className="text-[--k-muted]">Modifié :</span> {productLabel()}
           {sn && <> · <span className="text-[--k-muted]">SN</span> <RefBadge v={sn} /></>}
           {qty && qty > 1 && <> · <span className="text-[--k-muted]">×{qty}</span></>}
         </>
@@ -1333,8 +1360,7 @@ function humanizeEventRich(e: AssemblyEvent): React.ReactNode {
     case 'COMPONENT_REMOVED':
       return (
         <>
-          <span className="font-medium">Composant retiré</span>
-          {ref && <> · <RefBadge v={ref} /></>}
+          <span className="text-[--k-muted]">Retiré :</span> {productLabel()}
           {sn && <> · <span className="text-[--k-muted]">SN</span> <RefBadge v={sn} /></>}
         </>
       );

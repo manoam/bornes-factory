@@ -197,6 +197,7 @@ function CategoryCard({ assemblyId, category, selection, onChanged }: RowProps) 
     mutationFn: async (payload: {
       productId: string;
       productReference: string;
+      productDescription?: string | null;
       serialNumber?: string | null;
       quantity: number;
     }) => {
@@ -241,6 +242,7 @@ function CategoryCard({ assemblyId, category, selection, onChanged }: RowProps) 
     upsertM.mutate({
       productId: product.id,
       productReference: product.reference,
+      productDescription: productLabel(product),
       serialNumber: product.hasSerialNumber ? nextSn.trim() || null : null,
       quantity: Math.max(1, Number(nextQty) || 1),
     });
@@ -265,6 +267,7 @@ function CategoryCard({ assemblyId, category, selection, onChanged }: RowProps) 
     upsertM.mutate({
       productId: product.id,
       productReference: product.reference,
+      productDescription: productLabel(product),
       serialNumber: null,
       quantity: Math.max(1, Number(quantity) || 1),
     });
