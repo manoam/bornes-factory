@@ -12,6 +12,10 @@ import {
   Camera,
   Search,
   AlertTriangle,
+  Package,
+  Boxes,
+  Shield,
+  Wrench,
 } from 'lucide-react';
 import api from '../services/api';
 import QrScannerModal, { type ParsedQr } from '../components/QrScannerModal';
@@ -56,6 +60,40 @@ const PART_TYPE_LABEL: Record<PartType, string> = {
 };
 // Ordre metier fixe : gros modules d'abord, puis protections, puis visserie.
 const PART_TYPE_ORDER: PartType[] = ['EQUIPMENT', 'PROTECTION', 'ACCESSORY'];
+
+const PART_TYPE_ICON: Record<PartType, typeof Boxes> = {
+  EQUIPMENT: Boxes,
+  PROTECTION: Shield,
+  ACCESSORY: Wrench,
+};
+
+// Palette Tailwind par PartType (couleur du tab actif + accents).
+const PART_TYPE_ACCENT: Record<PartType, { text: string; bg: string; border: string; ring: string; softBg: string; softText: string }> = {
+  EQUIPMENT: {
+    text: 'text-blue-700',
+    bg: 'bg-blue-600',
+    border: 'border-blue-600',
+    ring: 'ring-blue-300',
+    softBg: 'bg-blue-50',
+    softText: 'text-blue-800',
+  },
+  PROTECTION: {
+    text: 'text-emerald-700',
+    bg: 'bg-emerald-600',
+    border: 'border-emerald-600',
+    ring: 'ring-emerald-300',
+    softBg: 'bg-emerald-50',
+    softText: 'text-emerald-800',
+  },
+  ACCESSORY: {
+    text: 'text-amber-700',
+    bg: 'bg-amber-600',
+    border: 'border-amber-600',
+    ring: 'ring-amber-300',
+    softBg: 'bg-amber-50',
+    softText: 'text-amber-800',
+  },
+};
 
 interface ChecklistLine {
   productId: string;
@@ -540,68 +578,122 @@ function ChecklistSection({
     return out;
   }, [checklist.categorySelections]);
 
+  // Progression globale = nombre de categories renseignees / nombre total
+  // de selections cote serveur + lignes BOM completes. Simplification :
+  // on se base sur categorySelections pour la progression atelier.
+  const totalSelections = Object.keys(selectionsByCategory).length;
+  const bomTotal = visibleCount;
+  const bomComplete = checklist.completeCount;
+  // Progress bar globale : combine BOM (si non vide) + selections libres.
+  const globalDenom = bomTotal + Math.max(0, totalSelections - bomComplete);
+  const globalNum = bomComplete + Math.max(0, totalSelections - bomComplete);
+  const globalPct = globalDenom > 0
+    ? Math.round((globalNum / globalDenom) * 100)
+    : totalSelections > 0
+      ? 100
+      : 0;
+  const activeAccent = PART_TYPE_ACCENT[activeTab];
+
   return (
-    <section className="rounded-xl border border-[--k-border] bg-[--k-surface]">
-      <header className="px-4 py-3 border-b border-[--k-border] flex items-center justify-between">
-        <h2 className="text-[14px] font-semibold">
-          Composants à installer ({visibleCount})
-        </h2>
-        <span className="text-[12px] text-[--k-muted] tabular-nums">
-          {checklist.completeCount} / {checklist.requiredCount} complets
-        </span>
+    <section className="rounded-2xl border border-[--k-border] bg-[--k-surface] overflow-hidden shadow-sm shadow-black/[0.03]">
+      {/* Header : titre + progress bar globale */}
+      <header className="px-5 pt-4 pb-3 border-b border-[--k-border]">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="h-9 w-9 rounded-xl bg-[--k-primary]/10 flex items-center justify-center text-[--k-primary] shrink-0">
+              <Package className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-[15px] font-semibold text-[--k-text] truncate">
+                Composants à installer
+              </h2>
+              <p className="text-[11px] text-[--k-muted]">
+                {totalSelections === 0
+                  ? 'Aucun composant sélectionné'
+                  : `${totalSelections} composant${totalSelections > 1 ? 's' : ''} sélectionné${totalSelections > 1 ? 's' : ''}`}
+              </p>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-[13px] font-semibold text-[--k-text] tabular-nums">
+              {globalPct}%
+            </div>
+            <div className="text-[11px] text-[--k-muted]">progression</div>
+          </div>
+        </div>
+        {/* Progress bar */}
+        <div className="mt-3 h-1.5 w-full rounded-full bg-[--k-surface-2] overflow-hidden">
+          <div
+            className="h-full rounded-full bg-[--k-primary] transition-[width] duration-500"
+            style={{ width: `${globalPct}%` }}
+          />
+        </div>
       </header>
 
       {/* Barre de tabs — toujours affichee, meme si un ou plusieurs tabs sont vides */}
-      <div className="flex items-center gap-1 border-b border-[--k-border] px-4">
+      <div className="flex items-stretch border-b border-[--k-border] bg-[--k-surface-2]/40">
         {PART_TYPE_ORDER.map((t) => {
           const arr = groups.get(t) || [];
           const complete = arr.filter((l) => l.complete).length;
-          const isEmpty = arr.length === 0;
-          const isDone = !isEmpty && complete === arr.length;
+          const total = arr.length;
+          const accent = PART_TYPE_ACCENT[t];
+          const Icon = PART_TYPE_ICON[t];
           const active = activeTab === t;
+          const isDone = total > 0 && complete === total;
+          // Compte cote selections utilisateur (pour l'affichage badge)
+          const selectionsCount = Object.values(selectionsByCategory).filter((s) => {
+            // On ne connait pas ici le partType de chaque selection sans lookup.
+            // Approx : on compte les productCategoryId qui apparaissent dans les
+            // lignes BOM du tab, sinon on prend les total selections globales / 3.
+            // Simplification : on montre juste le compteur global BOM.
+            void s;
+            return false;
+          }).length;
+          void selectionsCount;
           return (
             <button
               key={t}
               type="button"
               onClick={() => setActiveTab(t)}
-              className={`relative px-3 py-2 text-[13px] font-medium transition ${
+              className={`relative flex-1 px-3 py-3 text-[13px] font-medium transition flex items-center justify-center gap-2 border-b-2 -mb-[2px] ${
                 active
-                  ? 'text-[--k-primary] border-b-2 border-[--k-primary] -mb-[1px]'
-                  : isEmpty
-                    ? 'text-[--k-muted]/60 hover:text-[--k-text]'
-                    : 'text-[--k-muted] hover:text-[--k-text]'
+                  ? `${accent.text} ${accent.border} bg-[--k-surface]`
+                  : 'text-[--k-muted] border-transparent hover:text-[--k-text] hover:bg-[--k-surface]/60'
               }`}
             >
-              {PART_TYPE_LABEL[t]}
-              <span
-                className={`ml-1.5 inline-flex min-w-[36px] justify-center rounded-full px-1.5 text-[11px] tabular-nums ${
-                  active
-                    ? isDone
+              <Icon className={`h-4 w-4 shrink-0 ${active ? accent.text : ''}`} />
+              <span>{PART_TYPE_LABEL[t]}</span>
+              {total > 0 && (
+                <span
+                  className={`inline-flex min-w-[36px] justify-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${
+                    isDone
                       ? 'bg-emerald-100 text-emerald-800'
-                      : 'bg-[--k-primary]/10 text-[--k-primary]'
-                    : isDone
-                      ? 'bg-emerald-50 text-emerald-700'
-                      : isEmpty
-                        ? 'bg-[--k-surface-2] text-[--k-muted]/60'
-                        : 'bg-[--k-surface-2] text-[--k-muted]'
-                }`}
-              >
-                {complete} / {arr.length}
-              </span>
+                      : active
+                        ? `${accent.softBg} ${accent.softText}`
+                        : 'bg-[--k-surface] text-[--k-muted]'
+                  }`}
+                >
+                  {complete} / {total}
+                </span>
+              )}
             </button>
           );
         })}
       </div>
 
       {/* Contenu du tab actif */}
-      <div>
+      <div className="p-4 space-y-4">
+        {/* Lignes BOM (checklist figee) */}
         {activeGroup.length > 0 && (
-          <>
-            <div className="flex items-center justify-between gap-2 bg-[--k-surface-2]/30 px-4 py-1.5">
-              <span className="text-[11px] uppercase tracking-wide text-[--k-muted]">
-                {PART_TYPE_LABEL[activeTab]}
-              </span>
-              <span className="text-[11px] text-[--k-muted] tabular-nums">
+          <div className="rounded-xl border border-[--k-border] overflow-hidden">
+            <div className="flex items-center justify-between gap-2 bg-[--k-surface-2]/50 px-3 py-2">
+              <div className="flex items-center gap-2">
+                <span className={`h-2 w-2 rounded-full ${activeAccent.bg}`} />
+                <span className="text-[11px] uppercase tracking-wide text-[--k-muted] font-semibold">
+                  Nomenclature — {PART_TYPE_LABEL[activeTab]}
+                </span>
+              </div>
+              <span className="text-[11px] text-[--k-muted] tabular-nums font-medium">
                 {activeComplete} / {activeGroup.length} complets
               </span>
             </div>
@@ -616,9 +708,10 @@ function ChecklistSection({
                 />
               ))}
             </div>
-          </>
+          </div>
         )}
 
+        {/* Panel matrice categories */}
         {editable && (
           <AddComponentPanel
             assemblyId={assemblyId}
