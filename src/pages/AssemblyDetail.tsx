@@ -1194,24 +1194,22 @@ function HistorySection({ events }: { events: AssemblyEvent[] }) {
 
   return (
     <section className="rounded-2xl border border-[--k-border] bg-[--k-surface] overflow-hidden shadow-sm shadow-black/[0.03]">
-      <header className="flex items-center gap-2.5 px-5 py-3.5 border-b border-[--k-border]">
-        <div className="h-9 w-9 rounded-xl bg-[--k-primary]/10 flex items-center justify-center text-[--k-primary] shrink-0">
-          <History className="h-5 w-5" />
+      <header className="flex items-center gap-2 px-4 py-2.5 border-b border-[--k-border]">
+        <div className="h-7 w-7 rounded-lg bg-[--k-primary]/10 flex items-center justify-center text-[--k-primary] shrink-0">
+          <History className="h-4 w-4" />
         </div>
-        <div>
-          <h2 className="text-[15px] font-semibold text-[--k-text]">Historique</h2>
-          <p className="text-[11px] text-[--k-muted]">
-            {events.length} événement{events.length > 1 ? 's' : ''}
-          </p>
-        </div>
+        <h2 className="text-[14px] font-semibold text-[--k-text]">Historique</h2>
+        <span className="text-[11px] text-[--k-muted]">
+          · {events.length} événement{events.length > 1 ? 's' : ''}
+        </span>
       </header>
-      <div className="p-5 space-y-6">
+      <div className="px-3 py-2 space-y-3">
         {Array.from(groups.entries()).map(([day, dayEvents]) => (
           <div key={day}>
-            <div className="text-[11px] uppercase tracking-wide font-semibold text-[--k-muted] mb-3">
+            <div className="text-[10px] uppercase tracking-wide font-semibold text-[--k-muted] px-1 mb-1">
               {day}
             </div>
-            <ol className="relative border-l border-[--k-border] ml-3 space-y-3">
+            <ol className="relative border-l border-[--k-border] ml-2.5">
               {dayEvents.map((e) => {
                 const meta = EVENT_META[e.eventType] || {
                   Icon: History,
@@ -1219,25 +1217,25 @@ function HistorySection({ events }: { events: AssemblyEvent[] }) {
                 };
                 const tone = TONE_CLASSES[meta.tone];
                 return (
-                  <li key={e.id} className="pl-5 relative">
+                  <li
+                    key={e.id}
+                    className="pl-4 pr-1 py-1 relative hover:bg-[--k-surface-2]/40 rounded-md"
+                  >
                     {/* Puce sur la ligne verticale */}
                     <span
-                      className={`absolute -left-3 top-0.5 flex h-6 w-6 items-center justify-center rounded-full ${tone.badge} ring-4 ring-[--k-surface]`}
+                      className={`absolute -left-[10px] top-1.5 flex h-5 w-5 items-center justify-center rounded-full ${tone.badge} ring-[3px] ring-[--k-surface]`}
                     >
-                      <meta.Icon className={`h-3.5 w-3.5 ${tone.icon}`} />
+                      <meta.Icon className={`h-3 w-3 ${tone.icon}`} />
                     </span>
-                    <div className="flex items-baseline justify-between gap-3 flex-wrap">
-                      <div className="text-[13px] text-[--k-text] leading-snug">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-[12.5px] text-[--k-text] leading-tight min-w-0">
                         {humanizeEventRich(e)}
                       </div>
-                      <div className="flex items-center gap-2 text-[11px] text-[--k-muted] shrink-0 tabular-nums">
-                        <span>{formatTime(e.createdAt)}</span>
-                        {e.actorName && (
-                          <>
-                            <span>·</span>
-                            <span className="truncate max-w-[140px]">{e.actorName}</span>
-                          </>
-                        )}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[11px] text-[--k-muted] tabular-nums">
+                          {formatTime(e.createdAt)}
+                        </span>
+                        <OperatorAvatar name={e.actorName} size="xs" showName={false} />
                       </div>
                     </div>
                   </li>
