@@ -576,30 +576,28 @@ function ChecklistSection({
 
       {/* Contenu du tab actif */}
       <div>
-        <div className="flex items-center justify-between gap-2 bg-[--k-surface-2]/30 px-4 py-1.5">
-          <span className="text-[11px] uppercase tracking-wide text-[--k-muted]">
-            {PART_TYPE_LABEL[activeTab]}
-          </span>
-          <span className="text-[11px] text-[--k-muted] tabular-nums">
-            {activeComplete} / {activeGroup.length} complets
-          </span>
-        </div>
-        {activeGroup.length === 0 ? (
-          <div className="px-4 py-6 text-[13px] text-[--k-muted] italic text-center">
-            Aucun composant « {PART_TYPE_LABEL[activeTab]} » dans cette nomenclature.
-          </div>
-        ) : (
-          <div className="divide-y divide-[--k-border]">
-            {activeGroup.map((line) => (
-              <ChecklistRow
-                key={line.productId}
-                assemblyId={assemblyId}
-                line={line}
-                editable={editable}
-                onChanged={onChanged}
-              />
-            ))}
-          </div>
+        {activeGroup.length > 0 && (
+          <>
+            <div className="flex items-center justify-between gap-2 bg-[--k-surface-2]/30 px-4 py-1.5">
+              <span className="text-[11px] uppercase tracking-wide text-[--k-muted]">
+                {PART_TYPE_LABEL[activeTab]}
+              </span>
+              <span className="text-[11px] text-[--k-muted] tabular-nums">
+                {activeComplete} / {activeGroup.length} complets
+              </span>
+            </div>
+            <div className="divide-y divide-[--k-border]">
+              {activeGroup.map((line) => (
+                <ChecklistRow
+                  key={line.productId}
+                  assemblyId={assemblyId}
+                  line={line}
+                  editable={editable}
+                  onChanged={onChanged}
+                />
+              ))}
+            </div>
+          </>
         )}
 
         {editable && (

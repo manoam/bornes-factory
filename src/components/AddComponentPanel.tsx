@@ -134,12 +134,6 @@ export default function AddComponentPanel({ assemblyId, partType, onAdded }: Pro
 
   return (
     <div className="border-t border-[--k-border] bg-[--k-surface-2]/30 px-4 py-3 space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="text-[11px] uppercase tracking-wide text-[--k-muted]">
-          Ajouter un composant hors nomenclature
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1fr)_auto_auto] gap-2 items-start">
         {/* Categorie principale */}
         <div>
