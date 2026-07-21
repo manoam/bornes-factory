@@ -81,10 +81,20 @@ interface ChecklistLine {
   }[];
 }
 
+interface CategorySelectionPayload {
+  componentId: string;
+  productCategoryId: string;
+  productId: string;
+  productReference: string;
+  serialNumber: string | null;
+  quantity: number;
+}
+
 interface ChecklistPayload {
   model: string;
   lines: ChecklistLine[];
   extras: AssemblyComponent[];
+  categorySelections: CategorySelectionPayload[];
   requiredCount: number;
   completeCount: number;
   qualityChecks: { id: string; label: string }[];
@@ -521,6 +531,15 @@ function ChecklistSection({
   const activeGroup = groups.get(activeTab) || [];
   const activeComplete = activeGroup.filter((l) => l.complete).length;
 
+  // Selections par ProductCategory, indexees pour lookup O(1) cote panel.
+  const selectionsByCategory = useMemo(() => {
+    const out: Record<string, CategorySelectionPayload> = {};
+    for (const s of checklist.categorySelections || []) {
+      out[s.productCategoryId] = s;
+    }
+    return out;
+  }, [checklist.categorySelections]);
+
   return (
     <section className="rounded-xl border border-[--k-border] bg-[--k-surface]">
       <header className="px-4 py-3 border-b border-[--k-border] flex items-center justify-between">
@@ -604,7 +623,8 @@ function ChecklistSection({
           <AddComponentPanel
             assemblyId={assemblyId}
             partType={activeTab}
-            onAdded={onChanged}
+            selections={selectionsByCategory}
+            onChanged={onChanged}
           />
         )}
       </div>

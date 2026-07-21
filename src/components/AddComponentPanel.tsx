@@ -1,18 +1,15 @@
-import { useEffect, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { Loader2, Plus, AlertTriangle } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Loader2, X } from 'lucide-react';
 import api from '../services/api';
 
 /**
- * Panel "Ajouter un composant hors nomenclature" affiché sous la
- * checklist BOM de la page assemblage Factory, un par tab de PartType.
+ * Matrice des catégories du partType actif : une ligne par catégorie
+ * (Imprimante, PC, Écran, ...). Pour chaque catégorie l'opérateur
+ * choisit AU PLUS un produit + qté + SN.
  *
- * Flow : Catégorie principale → Produit → (SN si le produit en gère) →
- * bouton Ajouter. Le SN est optionnel : si aucun SN n'est disponible
- * un message s'affiche mais on peut quand même ajouter sans SN.
- *
- * `partType` filtre la 1re dropdown côté serveur. Si null on affiche
- * toutes les catégories (fallback rarissime pour un tab non-typé).
+ * Auto-save sur changement (debounce sur qté). Aucun bouton "Ajouter".
+ * Repasser le produit à "aucun choix" retire le composant.
  */
 
 export type PartType = 'EQUIPMENT' | 'PROTECTION' | 'ACCESSORY';
@@ -39,31 +36,31 @@ interface StockProductLite {
 interface StockSerialItem {
   id: string;
   serialNumber: string | null;
-  status: 'IN_STOCK' | 'OUT' | 'IN_REPAIR' | 'SCRAPPED' | 'LOST';
+}
+
+export interface CategorySelection {
+  componentId: string;
+  productCategoryId: string;
+  productId: string;
+  productReference: string;
+  serialNumber: string | null;
+  quantity: number;
 }
 
 interface Props {
   assemblyId: string;
   partType: PartType | null;
-  onAdded: () => void;
+  /** Selections existantes cote serveur, indexees par productCategoryId. */
+  selections: Record<string, CategorySelection>;
+  onChanged: () => void;
 }
 
-export default function AddComponentPanel({ assemblyId, partType, onAdded }: Props) {
-  const [categoryId, setCategoryId] = useState('');
-  const [productId, setProductId] = useState('');
-  const [serialNumber, setSerialNumber] = useState('');
-  const [quantity, setQuantity] = useState(1);
-  const [error, setError] = useState<string | null>(null);
-
-  // Reset la chaine de selection quand le tab actif change
-  useEffect(() => {
-    setCategoryId('');
-    setProductId('');
-    setSerialNumber('');
-    setQuantity(1);
-    setError(null);
-  }, [partType]);
-
+export default function AddComponentPanel({
+  assemblyId,
+  partType,
+  selections,
+  onChanged,
+}: Props) {
   const categoriesQ = useQuery({
     queryKey: ['catalog', 'product-categories', partType],
     queryFn: async () => {
@@ -75,15 +72,71 @@ export default function AddComponentPanel({ assemblyId, partType, onAdded }: Pro
     },
   });
 
+  if (categoriesQ.isLoading) {
+    return (
+      <div className="border-t border-[--k-border] bg-[--k-surface-2]/30 px-4 py-6 flex items-center justify-center text-[--k-muted]">
+        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+        Chargement des catégories…
+      </div>
+    );
+  }
+
+  if (categoriesQ.data && categoriesQ.data.length === 0) {
+    return (
+      <div className="border-t border-[--k-border] bg-amber-50/40 px-4 py-3 text-[12px] text-amber-800">
+        Aucune catégorie {partType ? `« ${partType} »` : ''} taguée côté Stock — ajoute-en
+        depuis Paramètres.
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-t border-[--k-border] divide-y divide-[--k-border]">
+      {categoriesQ.data?.map((cat) => (
+        <CategoryRow
+          key={cat.id}
+          assemblyId={assemblyId}
+          category={cat}
+          selection={selections[cat.id]}
+          onChanged={onChanged}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── Category row ────────────────────────────────────────────────────────
+
+interface RowProps {
+  assemblyId: string;
+  category: StockProductCategory;
+  selection?: CategorySelection;
+  onChanged: () => void;
+}
+
+function CategoryRow({ assemblyId, category, selection, onChanged }: RowProps) {
+  const qc = useQueryClient();
+  const [productId, setProductId] = useState(selection?.productId ?? '');
+  const [serialNumber, setSerialNumber] = useState(selection?.serialNumber ?? '');
+  const [quantity, setQuantity] = useState(selection?.quantity ?? 1);
+  const [error, setError] = useState<string | null>(null);
+
+  // Sync l'etat local quand les selections serveur changent (ex : autre
+  // operateur, refetch...). On evite d'ecraser une saisie en cours.
+  useEffect(() => {
+    setProductId(selection?.productId ?? '');
+    setSerialNumber(selection?.serialNumber ?? '');
+    setQuantity(selection?.quantity ?? 1);
+  }, [selection?.componentId, selection?.productId, selection?.serialNumber, selection?.quantity]);
+
   const productsQ = useQuery({
-    queryKey: ['catalog', 'products', categoryId],
+    queryKey: ['catalog', 'products', category.id],
     queryFn: async () => {
       const res = await api.get<{ success: boolean; data: StockProductLite[] }>(
-        `/catalog/products?productCategoryId=${categoryId}`,
+        `/catalog/products?productCategoryId=${category.id}`,
       );
       return res.data.data;
     },
-    enabled: !!categoryId,
   });
 
   const selectedProduct = productsQ.data?.find((p) => p.id === productId) || null;
@@ -99,91 +152,141 @@ export default function AddComponentPanel({ assemblyId, partType, onAdded }: Pro
     enabled: !!productId && !!selectedProduct?.hasSerialNumber,
   });
 
-  const addM = useMutation({
-    mutationFn: async () => {
-      if (!selectedProduct) throw new Error('Produit requis');
-      await api.post(`/assembly-orders/${assemblyId}/components`, {
-        productId: selectedProduct.id,
-        productReference: selectedProduct.reference,
-        serialNumber: selectedProduct.hasSerialNumber ? serialNumber.trim() || null : null,
-        quantity: Math.max(1, Number(quantity) || 1),
-      });
+  const upsertM = useMutation({
+    mutationFn: async (payload: {
+      productId: string;
+      productReference: string;
+      serialNumber?: string | null;
+      quantity: number;
+    }) => {
+      await api.put(
+        `/assembly-orders/${assemblyId}/categories/${category.id}`,
+        payload,
+      );
     },
     onSuccess: () => {
       setError(null);
-      setProductId('');
-      setSerialNumber('');
-      setQuantity(1);
-      // On garde la categorie selectionnee pour ajouter en rafale.
-      onAdded();
+      qc.invalidateQueries({ queryKey: ['assembly-checklist', assemblyId] });
+      onChanged();
     },
     onError: (err: { response?: { data?: { error?: string } } }) => {
-      setError(err.response?.data?.error || "Impossible d'ajouter le composant");
+      setError(err.response?.data?.error || 'Erreur');
     },
   });
 
+  const removeM = useMutation({
+    mutationFn: async () => {
+      await api.delete(`/assembly-orders/${assemblyId}/categories/${category.id}`);
+    },
+    onSuccess: () => {
+      setError(null);
+      qc.invalidateQueries({ queryKey: ['assembly-checklist', assemblyId] });
+      onChanged();
+    },
+    onError: (err: { response?: { data?: { error?: string } } }) => {
+      setError(err.response?.data?.error || 'Erreur');
+    },
+  });
+
+  // Debounce sur qte : 500ms apres derniere frappe.
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveDebounced = (opts: { qty?: number; sn?: string; pid?: string }) => {
+    const nextProductId = opts.pid ?? productId;
+    const nextQty = opts.qty ?? quantity;
+    const nextSn = opts.sn ?? serialNumber;
+    // Si rien a envoyer (pas de produit), on ne save pas.
+    if (!nextProductId) return;
+    const product = productsQ.data?.find((p) => p.id === nextProductId);
+    if (!product) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      upsertM.mutate({
+        productId: product.id,
+        productReference: product.reference,
+        serialNumber: product.hasSerialNumber ? nextSn.trim() || null : null,
+        quantity: Math.max(1, Number(nextQty) || 1),
+      });
+    }, 500);
+  };
+
+  const handleProductChange = (newId: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setProductId(newId);
+    setSerialNumber(''); // reset SN quand on change de produit
+    if (!newId) {
+      // Retour a "aucun choix" -> delete la ligne cote serveur
+      if (selection) removeM.mutate();
+      return;
+    }
+    const product = productsQ.data?.find((p) => p.id === newId);
+    if (!product) return;
+    // Save immediat sur choix de produit
+    upsertM.mutate({
+      productId: product.id,
+      productReference: product.reference,
+      serialNumber: null,
+      quantity: Math.max(1, Number(quantity) || 1),
+    });
+  };
+
+  const handleSerialChange = (newSn: string) => {
+    setSerialNumber(newSn);
+    // Save immediat sur choix de SN
+    saveDebouncedImmediate({ sn: newSn });
+  };
+
+  const saveDebouncedImmediate = (opts: { sn?: string }) => {
+    if (!productId) return;
+    const product = productsQ.data?.find((p) => p.id === productId);
+    if (!product) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    upsertM.mutate({
+      productId: product.id,
+      productReference: product.reference,
+      serialNumber: product.hasSerialNumber ? (opts.sn ?? serialNumber).trim() || null : null,
+      quantity: Math.max(1, Number(quantity) || 1),
+    });
+  };
+
+  const handleQtyChange = (n: number) => {
+    setQuantity(n);
+    saveDebounced({ qty: n });
+  };
+
   const productLabel = (p: StockProductLite): string => {
     if (p.name) return `${p.name} (${p.reference})`;
-    // Fallback si pas de nom : brand + model + variant
     const parts = [p.brand, p.model, p.variant].filter(Boolean).join(' ');
     return parts ? `${parts} (${p.reference})` : p.reference;
   };
 
-  const hasSerialNoStock =
-    !!selectedProduct?.hasSerialNumber && serialsQ.data && serialsQ.data.length === 0;
+  const hasSelection = !!selection && !!productId;
+  const busy = upsertM.isPending || removeM.isPending;
 
   return (
-    <div className="border-t border-[--k-border] bg-[--k-surface-2]/30 px-4 py-3 space-y-2">
-      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1fr)_auto_auto] gap-2 items-start">
-        {/* Categorie principale */}
-        <div>
-          <label className="block text-[11px] text-[--k-muted] mb-0.5">Catégorie</label>
-          <select
-            className="input-field w-full text-[13px]"
-            value={categoryId}
-            onChange={(e) => {
-              setCategoryId(e.target.value);
-              setProductId('');
-              setSerialNumber('');
-            }}
-            disabled={categoriesQ.isLoading}
-          >
-            <option value="">
-              {categoriesQ.isLoading ? 'Chargement…' : '— Choisir une catégorie —'}
-            </option>
-            {categoriesQ.data?.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} ({c.codeReference})
-              </option>
-            ))}
-          </select>
-          {categoriesQ.data && categoriesQ.data.length === 0 && (
-            <p className="mt-1 text-[11px] text-amber-700">
-              Aucune catégorie {partType ? `« ${partType} »` : ''} taguée côté Stock.
-            </p>
-          )}
+    <div className="px-4 py-2.5 hover:bg-[--k-surface-2]/30">
+      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,180px)_minmax(0,1.4fr)_minmax(0,1fr)_auto_auto] gap-2 items-center">
+        {/* Nom de la categorie */}
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="font-medium text-[13px] truncate">{category.name}</span>
+          <span className="font-mono text-[10px] text-[--k-muted] shrink-0">
+            {category.codeReference}
+          </span>
         </div>
 
         {/* Produit */}
         <div>
-          <label className="block text-[11px] text-[--k-muted] mb-0.5">Produit</label>
           <select
-            className="input-field w-full text-[13px]"
+            className="input-field w-full text-[13px] h-9"
             value={productId}
-            onChange={(e) => {
-              setProductId(e.target.value);
-              setSerialNumber('');
-            }}
-            disabled={!categoryId || productsQ.isLoading}
+            onChange={(e) => handleProductChange(e.target.value)}
+            disabled={productsQ.isLoading || busy}
           >
             <option value="">
-              {!categoryId
-                ? '— Choisir d\'abord une catégorie —'
-                : productsQ.isLoading
-                  ? 'Chargement…'
-                  : productsQ.data && productsQ.data.length === 0
-                    ? 'Aucun produit dans cette catégorie'
-                    : '— Choisir un produit —'}
+              {productsQ.isLoading
+                ? 'Chargement…'
+                : productsQ.data && productsQ.data.length === 0
+                  ? '— Aucun produit —'
+                  : '— Aucun choix —'}
             </option>
             {productsQ.data?.map((p) => (
               <option key={p.id} value={p.id}>
@@ -193,74 +296,70 @@ export default function AddComponentPanel({ assemblyId, partType, onAdded }: Pro
           </select>
         </div>
 
-        {/* N° de serie ou quantite */}
-        {selectedProduct?.hasSerialNumber ? (
-          <div>
-            <label className="block text-[11px] text-[--k-muted] mb-0.5">N° de série</label>
-            <div className="flex gap-1">
-              <select
-                className="input-field w-full text-[13px]"
-                value={serialNumber}
-                onChange={(e) => setSerialNumber(e.target.value)}
-                disabled={serialsQ.isLoading}
-              >
-                <option value="">
-                  {serialsQ.isLoading
-                    ? 'Chargement…'
-                    : hasSerialNoStock
-                      ? '— Aucun SN disponible —'
-                      : '— Choisir un SN (facultatif) —'}
+        {/* SN ou placeholder */}
+        <div>
+          {selectedProduct?.hasSerialNumber ? (
+            <select
+              className="input-field w-full text-[13px] h-9"
+              value={serialNumber}
+              onChange={(e) => handleSerialChange(e.target.value)}
+              disabled={serialsQ.isLoading || busy}
+            >
+              <option value="">
+                {serialsQ.isLoading
+                  ? 'Chargement…'
+                  : serialsQ.data && serialsQ.data.length === 0
+                    ? '— Aucun SN dispo —'
+                    : '— N° de série (facultatif) —'}
+              </option>
+              {serialsQ.data?.map((s) => (
+                <option key={s.id} value={s.serialNumber || s.id}>
+                  {s.serialNumber || `(sans SN — id ${s.id.slice(0, 8)})`}
                 </option>
-                {serialsQ.data?.map((s) => (
-                  <option key={s.id} value={s.serialNumber || s.id}>
-                    {s.serialNumber || `(sans SN — id ${s.id.slice(0, 8)})`}
-                  </option>
-                ))}
-              </select>
+              ))}
+            </select>
+          ) : (
+            <div className="text-[11px] text-[--k-muted] italic pl-2">
+              {productId ? 'Sans N° de série' : ''}
             </div>
-            {hasSerialNoStock && (
-              <p className="mt-1 text-[11px] text-amber-700 flex items-center gap-1">
-                <AlertTriangle className="h-3 w-3" />
-                Aucun SN libre en stock. Tu peux ajouter sans SN ou en créer un côté Stock.
-              </p>
-            )}
-          </div>
-        ) : (
-          <div>
-            <label className="block text-[11px] text-[--k-muted] mb-0.5">Quantité</label>
-            <input
-              type="number"
-              min={1}
-              className="input-field w-full text-[13px]"
-              value={quantity}
-              onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-              disabled={!selectedProduct}
-            />
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* Spacer + bouton */}
-        <div />
-        <div className="flex items-end">
-          <button
-            type="button"
-            onClick={() => addM.mutate()}
-            disabled={!selectedProduct || addM.isPending}
-            className="h-9 rounded-lg bg-[--k-primary] text-white px-3 text-[13px] font-medium inline-flex items-center gap-1.5 disabled:opacity-50"
-          >
-            {addM.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Plus className="h-4 w-4" />
-            )}
-            Ajouter
-          </button>
+        {/* Quantite */}
+        <div>
+          <input
+            type="number"
+            min={1}
+            className="input-field text-[13px] h-9 w-16 text-center"
+            value={quantity}
+            onChange={(e) => handleQtyChange(parseInt(e.target.value) || 1)}
+            disabled={!productId || busy}
+            title="Quantité"
+          />
+        </div>
+
+        {/* Bouton retirer */}
+        <div className="flex items-center justify-end gap-2 min-w-[24px]">
+          {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-[--k-muted]" />}
+          {hasSelection && !busy && (
+            <button
+              type="button"
+              onClick={() => {
+                setProductId('');
+                setSerialNumber('');
+                setQuantity(1);
+                removeM.mutate();
+              }}
+              className="text-[--k-muted] hover:text-rose-700"
+              title="Retirer ce composant"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
 
-      {error && (
-        <p className="text-[12px] text-rose-700">{error}</p>
-      )}
+      {error && <p className="mt-1 text-[11px] text-rose-700">{error}</p>}
     </div>
   );
 }
