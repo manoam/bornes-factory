@@ -46,22 +46,22 @@ interface AssemblyComponent {
   installedAt: string | null;
 }
 
-type PartType = 'EQUIPMENT' | 'PROTECTION' | 'HARDWARE';
+type PartType = 'EQUIPMENT' | 'PROTECTION' | 'ACCESSORY';
 
 const PART_TYPE_LABEL: Record<PartType, string> = {
   EQUIPMENT: 'Équipement',
   PROTECTION: 'Protection',
-  HARDWARE: 'Visserie',
+  ACCESSORY: 'Accessoire',
 };
 // Ordre metier fixe : gros modules d'abord, puis protections, puis visserie.
-const PART_TYPE_ORDER: PartType[] = ['EQUIPMENT', 'PROTECTION', 'HARDWARE'];
+const PART_TYPE_ORDER: PartType[] = ['EQUIPMENT', 'PROTECTION', 'ACCESSORY'];
 
 interface ChecklistLine {
   productId: string;
   productReference: string;
   productDescription: string | null;
   /**
-   * Type de piece (Equipement / Protection / Visserie). Orthogonal a
+   * Type de piece (Equipement / Protection / Accessoire). Orthogonal a
    * partCategory qui decrit la localisation (Tete/Pied/Socle). Null si
    * l'admin Stock n'a pas encore tague le produit — les lignes null sont
    * CACHEES dans la checklist (decision explicite).
@@ -486,7 +486,7 @@ function ChecklistSection({
 }) {
   const editable = status === 'DRAFT' || status === 'IN_PROGRESS';
 
-  // On groupe les lignes par partType (Equipement / Protection / Visserie)
+  // On groupe les lignes par partType (Equipement / Protection / Accessoire)
   // et on cache celles sans partType. Les 3 tabs sont TOUJOURS affiches
   // (meme vides) pour que l'operateur voie la structure attendue.
   const groups = new Map<PartType, ChecklistLine[]>();
