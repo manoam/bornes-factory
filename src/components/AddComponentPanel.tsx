@@ -82,6 +82,13 @@ export default function AddComponentPanel({
     },
   });
 
+  // Defense en profondeur : filtre cote client au cas ou le backend
+  // renvoie des categories du mauvais partType (proxy pas encore
+  // deploye, mauvaise version en cache, etc.).
+  const categories = (categoriesQ.data || []).filter((c) =>
+    partType ? c.partType === partType : true,
+  );
+
   if (categoriesQ.isLoading) {
     return (
       <div className="border-t border-[--k-border] bg-[--k-surface-2]/30 px-4 py-6 flex items-center justify-center text-[--k-muted]">
@@ -91,18 +98,18 @@ export default function AddComponentPanel({
     );
   }
 
-  if (categoriesQ.data && categoriesQ.data.length === 0) {
+  if (categoriesQ.data && categories.length === 0) {
     return (
       <div className="border-t border-[--k-border] bg-amber-50/40 px-4 py-3 text-[12px] text-amber-800">
-        Aucune catégorie {partType ? `« ${partType} »` : ''} taguée côté Stock — ajoute-en
-        depuis Paramètres.
+        Aucune catégorie {partType ? `« ${partType} »` : ''} taguée côté Stock — tague-les
+        depuis Paramètres → Catégories principales (dropdown « Type de pièce »).
       </div>
     );
   }
 
   return (
     <div className="border-t border-[--k-border] divide-y divide-[--k-border]">
-      {categoriesQ.data?.map((cat) => (
+      {categories.map((cat) => (
         <CategoryRow
           key={cat.id}
           assemblyId={assemblyId}
