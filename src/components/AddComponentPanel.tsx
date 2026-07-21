@@ -305,14 +305,9 @@ function CategoryCard({ assemblyId, category, selection, onChanged }: RowProps) 
     >
       {/* Bandeau haut : nom categorie + statut */}
       <div className="flex items-center justify-between gap-2 px-3 pt-2.5 pb-1.5">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-[13px] font-semibold text-[--k-text] truncate">
-            {category.name}
-          </span>
-          <span className="font-mono text-[10px] text-[--k-muted] bg-[--k-surface-2] px-1.5 rounded shrink-0">
-            {category.codeReference}
-          </span>
-        </div>
+        <span className="text-[13px] font-semibold text-[--k-text] truncate min-w-0">
+          {category.name}
+        </span>
         <div className="flex items-center gap-1 shrink-0">
           {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-[--k-muted]" />}
           {!busy && hasSelection && (
