@@ -1204,46 +1204,81 @@ function HistorySection({ events }: { events: AssemblyEvent[] }) {
         </span>
       </header>
       <div className="px-3 py-2 space-y-3">
-        {Array.from(groups.entries()).map(([day, dayEvents]) => (
-          <div key={day}>
-            <div className="text-[10px] uppercase tracking-wide font-semibold text-[--k-muted] px-1 mb-1">
-              {day}
-            </div>
-            <ol className="relative border-l border-[--k-border] ml-2.5">
-              {dayEvents.map((e) => {
-                const meta = EVENT_META[e.eventType] || {
-                  Icon: History,
-                  tone: 'neutral' as const,
-                };
-                const tone = TONE_CLASSES[meta.tone];
-                return (
-                  <li
-                    key={e.id}
-                    className="pl-4 pr-1 py-1 relative hover:bg-[--k-surface-2]/40 rounded-md"
-                  >
-                    {/* Puce sur la ligne verticale */}
-                    <span
-                      className={`absolute -left-[10px] top-1.5 flex h-5 w-5 items-center justify-center rounded-full ${tone.badge} ring-[3px] ring-[--k-surface]`}
-                    >
-                      <meta.Icon className={`h-3 w-3 ${tone.icon}`} />
-                    </span>
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-[12.5px] text-[--k-text] leading-tight min-w-0">
-                        {humanizeEventRich(e)}
+        {Array.from(groups.entries()).map(([day, dayEvents]) => {
+          // Regroupement style Slack : consecutive events du meme auteur = un bloc.
+          type Bunch = { actorName: string | null; items: AssemblyEvent[] };
+          const bunches: Bunch[] = [];
+          for (const ev of dayEvents) {
+            const last = bunches[bunches.length - 1];
+            if (last && last.actorName === ev.actorName) {
+              last.items.push(ev);
+            } else {
+              bunches.push({ actorName: ev.actorName, items: [ev] });
+            }
+          }
+          return (
+            <div key={day}>
+              <div className="text-[10px] uppercase tracking-wide font-semibold text-[--k-muted] px-1 mb-1">
+                {day}
+              </div>
+              <div className="space-y-2.5">
+                {bunches.map((bunch, bIdx) => {
+                  const firstEv = bunch.items[0];
+                  return (
+                    <div key={bIdx} className="flex gap-2.5">
+                      {/* Avatar en gauche, aligne sur la 1ere ligne du bloc */}
+                      <div className="pt-0.5 shrink-0">
+                        <OperatorAvatar
+                          name={bunch.actorName}
+                          size="md"
+                          showName={false}
+                        />
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-[11px] text-[--k-muted] tabular-nums">
-                          {formatTime(e.createdAt)}
-                        </span>
-                        <OperatorAvatar name={e.actorName} size="xs" showName={false} />
+                      {/* Bloc messages */}
+                      <div className="flex-1 min-w-0">
+                        {/* Header du bloc : nom + heure du 1er event */}
+                        <div className="flex items-baseline gap-2 leading-tight">
+                          <span className="text-[13px] font-semibold text-[--k-text] truncate">
+                            {bunch.actorName || 'Système'}
+                          </span>
+                          <span className="text-[11px] text-[--k-muted] tabular-nums">
+                            {formatTime(firstEv.createdAt)}
+                          </span>
+                        </div>
+                        {/* Lignes d'evenements du bunch */}
+                        <ul className="mt-0.5 space-y-0.5">
+                          {bunch.items.map((e) => {
+                            const meta = EVENT_META[e.eventType] || {
+                              Icon: History,
+                              tone: 'neutral' as const,
+                            };
+                            const tone = TONE_CLASSES[meta.tone];
+                            return (
+                              <li
+                                key={e.id}
+                                className="group flex items-start gap-1.5 text-[12.5px] leading-snug"
+                                title={new Date(e.createdAt).toLocaleString('fr-FR')}
+                              >
+                                <span
+                                  className={`shrink-0 mt-[3px] inline-flex h-4 w-4 items-center justify-center rounded ${tone.badge}`}
+                                >
+                                  <meta.Icon className={`h-2.5 w-2.5 ${tone.icon}`} />
+                                </span>
+                                <span className="text-[--k-text] min-w-0">
+                                  {humanizeEventRich(e)}
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
                       </div>
                     </div>
-                  </li>
-                );
-              })}
-            </ol>
-          </div>
-        ))}
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </section>
   );
