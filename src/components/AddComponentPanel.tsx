@@ -173,7 +173,14 @@ function CategoryCard({ assemblyId, category, selection, onChanged }: RowProps) 
     },
   });
 
-  const selectedProduct = productsQ.data?.find((p) => p.id === productId) || null;
+  // Defense en profondeur : le backend Stock (ancienne version) peut ne
+  // pas filtrer sur productCategoryId. On refiltre cote client pour ne
+  // montrer que les produits vraiment dans cette categorie.
+  const products = (productsQ.data || []).filter(
+    (p) => p.productCategoryId === category.id,
+  );
+
+  const selectedProduct = products.find((p) => p.id === productId) || null;
 
   const serialsQ = useQuery({
     queryKey: ['catalog', 'serials', productId],
@@ -228,7 +235,7 @@ function CategoryCard({ assemblyId, category, selection, onChanged }: RowProps) 
     const nextQty = opts.qty ?? quantity;
     const nextSn = opts.sn ?? serialNumber;
     if (!nextProductId) return;
-    const product = productsQ.data?.find((p) => p.id === nextProductId);
+    const product = products.find((p) => p.id === nextProductId);
     if (!product) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     upsertM.mutate({
@@ -253,7 +260,7 @@ function CategoryCard({ assemblyId, category, selection, onChanged }: RowProps) 
       if (selection) removeM.mutate();
       return;
     }
-    const product = productsQ.data?.find((p) => p.id === newId);
+    const product = products.find((p) => p.id === newId);
     if (!product) return;
     upsertM.mutate({
       productId: product.id,
@@ -274,11 +281,14 @@ function CategoryCard({ assemblyId, category, selection, onChanged }: RowProps) 
   };
 
   const productLabel = (p: StockProductLite): string => {
-    const primary =
+    // Priorite : description > name > brand+model+variant. Reference cachee
+    // du dropdown (affichee en sous-ligne quand un produit est selectionne).
+    return (
       p.description?.trim() ||
       p.name?.trim() ||
-      [p.brand, p.model, p.variant].filter(Boolean).join(' ');
-    return primary ? `${primary} (${p.reference})` : p.reference;
+      [p.brand, p.model, p.variant].filter(Boolean).join(' ') ||
+      p.reference
+    );
   };
 
   const hasSelection = !!selection && !!productId;
@@ -354,11 +364,11 @@ function CategoryCard({ assemblyId, category, selection, onChanged }: RowProps) 
               <option value="">
                 {productsQ.isLoading
                   ? 'Chargement…'
-                  : productsQ.data && productsQ.data.length === 0
+                  : products.length === 0
                     ? '— Aucun produit dans cette catégorie —'
                     : '— Aucun choix —'}
               </option>
-              {productsQ.data?.map((p) => (
+              {products.map((p) => (
                 <option key={p.id} value={p.id}>
                   {productLabel(p)}
                 </option>
