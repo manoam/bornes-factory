@@ -17,6 +17,7 @@ import api from '../services/api';
 import QrScannerModal, { type ParsedQr } from '../components/QrScannerModal';
 import OperatorAvatar from '../components/OperatorAvatar';
 import SerialLink from '../components/SerialLink';
+import AddComponentPanel from '../components/AddComponentPanel';
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -599,6 +600,14 @@ function ChecklistSection({
               />
             ))}
           </div>
+        )}
+
+        {editable && (
+          <AddComponentPanel
+            assemblyId={assemblyId}
+            partType={activeTab}
+            onAdded={onChanged}
+          />
         )}
       </div>
 
