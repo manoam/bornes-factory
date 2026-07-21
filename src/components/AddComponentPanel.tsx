@@ -29,8 +29,18 @@ interface StockProductLite {
   brand: string | null;
   model: string | null;
   variant: string | null;
+  imageUrl: string | null;
   hasSerialNumber: boolean;
   productCategoryId: string | null;
+}
+
+// Base URL pour les images Stock (les imageUrl sont relatifs, ex /uploads/xxx.jpg)
+const STOCK_BASE_URL = (import.meta.env.VITE_STOCK_URL || 'https://stocks.orkessi.com')
+  .replace(/\/$/, '');
+function fullImageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith('http')) return url;
+  return `${STOCK_BASE_URL}${url}`;
 }
 
 interface StockSerialItem {
@@ -254,9 +264,12 @@ function CategoryRow({ assemblyId, category, selection, onChanged }: RowProps) {
   };
 
   const productLabel = (p: StockProductLite): string => {
-    if (p.name) return `${p.name} (${p.reference})`;
-    const parts = [p.brand, p.model, p.variant].filter(Boolean).join(' ');
-    return parts ? `${parts} (${p.reference})` : p.reference;
+    // Priorite : description > name > brand+model+variant. Reference toujours en suffixe.
+    const primary =
+      p.description?.trim() ||
+      p.name?.trim() ||
+      [p.brand, p.model, p.variant].filter(Boolean).join(' ');
+    return primary ? `${primary} (${p.reference})` : p.reference;
   };
 
   const hasSelection = !!selection && !!productId;
@@ -273,10 +286,26 @@ function CategoryRow({ assemblyId, category, selection, onChanged }: RowProps) {
           </span>
         </div>
 
-        {/* Produit */}
-        <div>
+        {/* Produit + thumbnail du produit choisi */}
+        <div className="flex items-center gap-2">
+          {(() => {
+            const thumb = fullImageUrl(selectedProduct?.imageUrl);
+            return thumb ? (
+              <img
+                src={thumb}
+                alt=""
+                className="h-9 w-9 rounded-md object-cover border border-[--k-border] shrink-0"
+                loading="lazy"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            ) : (
+              <div className="h-9 w-9 shrink-0" />
+            );
+          })()}
           <select
-            className="input-field w-full text-[13px] h-9"
+            className="input-field w-full text-[13px] h-9 min-w-0"
             value={productId}
             onChange={(e) => handleProductChange(e.target.value)}
             disabled={productsQ.isLoading || busy}
