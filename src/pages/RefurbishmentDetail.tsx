@@ -16,6 +16,16 @@ import {
   Wrench,
   Package,
   Sparkles,
+  History,
+  Rocket,
+  Flag,
+  PackagePlus,
+  PackageMinus,
+  PackageCheck,
+  RefreshCw,
+  FileText,
+  ShieldCheck,
+  Ban,
 } from 'lucide-react';
 import api from '../services/api';
 import QrScannerModal, { type ParsedQr } from '../components/QrScannerModal';
@@ -1091,73 +1101,277 @@ function NotesAndQualitySection({
   );
 }
 
-// ─── History ────────────────────────────────────────────────────────────
+// ─── History (style chat) ──────────────────────────────────────────────
+
+type EventMeta = {
+  Icon: typeof Play;
+  tone: 'primary' | 'success' | 'warning' | 'danger' | 'neutral' | 'info';
+};
+const EVENT_META: Record<string, EventMeta> = {
+  STARTED:            { Icon: Rocket,       tone: 'primary' },
+  STATUS_CHANGED:     { Icon: Flag,         tone: 'info' },
+  REASON_UPDATED:     { Icon: FileText,     tone: 'neutral' },
+  COMPONENT_INSTALLED:{ Icon: PackagePlus,  tone: 'success' },
+  COMPONENT_REMOVED:  { Icon: PackageMinus, tone: 'warning' },
+  COMPONENT_REVERTED: { Icon: RefreshCw,    tone: 'info' },
+  NOTES_UPDATED:      { Icon: FileText,     tone: 'neutral' },
+  QUALITY_CHECKED:    { Icon: ShieldCheck,  tone: 'success' },
+  QUALITY_UNCHECKED:  { Icon: ShieldCheck,  tone: 'neutral' },
+  COMPLETED:          { Icon: PackageCheck, tone: 'success' },
+  CANCELLED:          { Icon: Ban,          tone: 'danger' },
+};
+
+const TONE_CLASSES: Record<EventMeta['tone'], { badge: string; icon: string }> = {
+  primary: { badge: 'bg-[--k-primary]/10 text-[--k-primary]', icon: 'text-[--k-primary]' },
+  success: { badge: 'bg-emerald-100 text-emerald-700', icon: 'text-emerald-600' },
+  warning: { badge: 'bg-amber-100 text-amber-700', icon: 'text-amber-700' },
+  danger:  { badge: 'bg-rose-100 text-rose-700', icon: 'text-rose-600' },
+  info:    { badge: 'bg-sky-100 text-sky-700', icon: 'text-sky-600' },
+  neutral: { badge: 'bg-slate-100 text-slate-600', icon: 'text-slate-500' },
+};
+
+function formatDay(iso: string): string {
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+  if (sameDay(d, today)) return "Aujourd'hui";
+  if (sameDay(d, yesterday)) return 'Hier';
+  return d.toLocaleDateString('fr-FR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
 
 function HistorySection({ events }: { events: RefurbEvent[] }) {
   if (events.length === 0) {
     return (
-      <section className="rounded-xl border border-[--k-border] bg-[--k-surface] p-4">
-        <h2 className="text-[14px] font-semibold mb-2">Historique</h2>
-        <p className="text-[13px] text-[--k-muted] italic">
-          Aucun événement pour l'instant.
-        </p>
+      <section className="rounded-2xl border border-[--k-border] bg-[--k-surface] p-5 shadow-sm shadow-black/[0.03]">
+        <div className="flex items-center gap-2.5">
+          <div className="h-9 w-9 rounded-xl bg-[--k-surface-2] flex items-center justify-center text-[--k-muted]">
+            <History className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-[15px] font-semibold text-[--k-text]">Historique</h2>
+            <p className="text-[12px] text-[--k-muted]">Aucun événement pour l'instant.</p>
+          </div>
+        </div>
       </section>
     );
   }
+
+  const groups = new Map<string, RefurbEvent[]>();
+  for (const e of events) {
+    const key = formatDay(e.createdAt);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(e);
+  }
+
   return (
-    <section className="rounded-xl border border-[--k-border] bg-[--k-surface]">
-      <header className="px-4 py-3 border-b border-[--k-border]">
-        <h2 className="text-[14px] font-semibold">Historique</h2>
+    <section className="rounded-2xl border border-[--k-border] bg-[--k-surface] overflow-hidden shadow-sm shadow-black/[0.03]">
+      <header className="flex items-center gap-2 px-4 py-2.5 border-b border-[--k-border]">
+        <div className="h-7 w-7 rounded-lg bg-[--k-primary]/10 flex items-center justify-center text-[--k-primary] shrink-0">
+          <History className="h-4 w-4" />
+        </div>
+        <h2 className="text-[14px] font-semibold text-[--k-text]">Historique</h2>
+        <span className="text-[11px] text-[--k-muted]">
+          · {events.length} événement{events.length > 1 ? 's' : ''}
+        </span>
       </header>
-      <ul className="divide-y divide-[--k-border]">
-        {events.map((e) => (
-          <li key={e.id} className="px-4 py-2 text-[13px] flex items-start gap-2">
-            <span className="text-[11px] text-[--k-muted] tabular-nums shrink-0 w-32">
-              {new Date(e.createdAt).toLocaleString('fr-FR')}
-            </span>
-            <span className="flex-1">
-              {humanizeEvent(e)}
-              {e.actorName && (
-                <span className="text-[--k-muted]"> · {e.actorName}</span>
-              )}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <div className="px-3 py-2 space-y-3">
+        {Array.from(groups.entries()).map(([day, dayEvents]) => {
+          type Bunch = { actorName: string | null; items: RefurbEvent[] };
+          const bunches: Bunch[] = [];
+          for (const ev of dayEvents) {
+            const last = bunches[bunches.length - 1];
+            if (last && last.actorName === ev.actorName) {
+              last.items.push(ev);
+            } else {
+              bunches.push({ actorName: ev.actorName, items: [ev] });
+            }
+          }
+          return (
+            <div key={day}>
+              <div className="text-[10px] uppercase tracking-wide font-semibold text-[--k-muted] px-1 mb-1">
+                {day}
+              </div>
+              <div className="space-y-2.5">
+                {bunches.map((bunch, bIdx) => {
+                  const firstEv = bunch.items[0];
+                  return (
+                    <div key={bIdx} className="flex gap-2.5">
+                      <div className="pt-0.5 shrink-0">
+                        <OperatorAvatar
+                          name={bunch.actorName}
+                          size="lg"
+                          showName={false}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2 leading-tight">
+                          <span className="text-[13px] font-semibold text-[--k-text] truncate">
+                            {bunch.actorName || 'Système'}
+                          </span>
+                          <span className="text-[11px] text-[--k-muted] tabular-nums">
+                            {formatTime(firstEv.createdAt)}
+                          </span>
+                        </div>
+                        <ul className="mt-0.5 space-y-0.5">
+                          {bunch.items.map((e) => {
+                            const meta = EVENT_META[e.eventType] || {
+                              Icon: History,
+                              tone: 'neutral' as const,
+                            };
+                            const tone = TONE_CLASSES[meta.tone];
+                            return (
+                              <li
+                                key={e.id}
+                                className="group flex items-start gap-1.5 text-[12.5px] leading-snug"
+                                title={new Date(e.createdAt).toLocaleString('fr-FR')}
+                              >
+                                <span
+                                  className={`shrink-0 mt-[3px] inline-flex h-4 w-4 items-center justify-center rounded ${tone.badge}`}
+                                >
+                                  <meta.Icon className={`h-2.5 w-2.5 ${tone.icon}`} />
+                                </span>
+                                <span className="text-[--k-text] min-w-0">
+                                  {humanizeEventRich(e)}
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }
 
-function humanizeEvent(e: RefurbEvent): string {
+function humanizeEventRich(e: RefurbEvent): React.ReactNode {
   const p = (e.payload || {}) as Record<string, unknown>;
+  const ref = typeof p.productRef === 'string' ? p.productRef : null;
+  const desc =
+    typeof p.productDescription === 'string' && p.productDescription
+      ? p.productDescription
+      : null;
+  const sn = typeof p.serialNumber === 'string' && p.serialNumber ? p.serialNumber : null;
+  const qty = typeof p.quantity === 'number' ? p.quantity : null;
+  const disposition = typeof p.disposition === 'string' ? p.disposition : null;
+
+  const RefBadge = ({ v }: { v: string }) => (
+    <span className="font-mono text-[10.5px] bg-[--k-surface-2] text-[--k-muted] px-1.5 py-0.5 rounded">
+      {v}
+    </span>
+  );
+
+  const productLabel = () => {
+    if (desc) {
+      return (
+        <>
+          <span className="font-medium text-[--k-text]">{desc}</span>
+          {ref && (
+            <>
+              {' '}
+              <RefBadge v={ref} />
+            </>
+          )}
+        </>
+      );
+    }
+    if (ref) {
+      return <span className="font-medium font-mono text-[12px] text-[--k-text]">{ref}</span>;
+    }
+    return null;
+  };
+
   switch (e.eventType) {
     case 'STARTED':
-      return 'Reconditionnement démarré';
+      return <span className="font-medium">Reconditionnement démarré</span>;
     case 'STATUS_CHANGED':
-      return `Statut : ${p.from ?? '—'} → ${p.to}`;
+      return (
+        <>
+          <span className="text-[--k-muted]">Statut :</span>{' '}
+          <span className="font-medium">{String(p.from ?? '—')}</span>
+          <span className="text-[--k-muted]"> → </span>
+          <span className="font-medium">{String(p.to)}</span>
+        </>
+      );
     case 'REASON_UPDATED':
-      return 'Motif mis à jour';
-    case 'COMPONENT_REMOVED':
-      return `Composant retiré : ${p.productRef}${
-        p.serialNumber ? ` (SN ${p.serialNumber})` : ''
-      }${p.disposition ? ` → ${p.disposition}` : ''}`;
+      return <span className="font-medium">Motif mis à jour</span>;
     case 'COMPONENT_INSTALLED':
-      return `Composant installé : ${p.productRef}${
-        p.serialNumber ? ` (SN ${p.serialNumber})` : ''
-      }`;
+      return (
+        <>
+          <span className="text-[--k-muted]">Installé :</span> {productLabel()}
+          {sn && <> · <span className="text-[--k-muted]">SN</span> <RefBadge v={sn} /></>}
+          {qty && qty > 1 && <> · <span className="text-[--k-muted]">×{qty}</span></>}
+        </>
+      );
+    case 'COMPONENT_REMOVED':
+      return (
+        <>
+          <span className="text-[--k-muted]">Retiré :</span> {productLabel()}
+          {sn && <> · <span className="text-[--k-muted]">SN</span> <RefBadge v={sn} /></>}
+          {qty && qty > 1 && <> · <span className="text-[--k-muted]">×{qty}</span></>}
+          {disposition && (
+            <> · <RefBadge v={DISPOSITION_LABEL[disposition as Disposition] || disposition} /></>
+          )}
+        </>
+      );
     case 'COMPONENT_REVERTED':
-      return `Composant retiré de la liste : ${p.productRef}`;
+      return (
+        <>
+          <span className="text-[--k-muted]">Retiré de la liste :</span> {productLabel()}
+        </>
+      );
     case 'NOTES_UPDATED':
-      return 'Notes mises à jour';
+      return <span className="font-medium">Notes mises à jour</span>;
     case 'QUALITY_CHECKED':
-      return `Contrôle qualité validé : ${p.checkId}`;
+      return (
+        <>
+          <span className="font-medium">Contrôle qualité validé</span>
+          {' '}<RefBadge v={String(p.checkId)} />
+        </>
+      );
     case 'QUALITY_UNCHECKED':
-      return `Contrôle qualité retiré : ${p.checkId}`;
+      return (
+        <>
+          <span className="font-medium">Contrôle qualité retiré</span>
+          {' '}<RefBadge v={String(p.checkId)} />
+        </>
+      );
     case 'COMPLETED':
-      return `Reconditionnement validé (${p.componentsCount ?? 0} composant(s))`;
+      return (
+        <>
+          <span className="font-medium">Reconditionnement validé</span>
+          {typeof p.componentsCount === 'number' && p.componentsCount > 0 && (
+            <span className="text-[--k-muted]"> · {p.componentsCount} composant{p.componentsCount > 1 ? 's' : ''}</span>
+          )}
+        </>
+      );
     case 'CANCELLED':
-      return `Annulé${p.reason ? ` : ${p.reason}` : ''}`;
+      return (
+        <>
+          <span className="font-medium">Reconditionnement annulé</span>
+          {p.reason ? <span className="text-[--k-muted]"> · {String(p.reason)}</span> : null}
+        </>
+      );
     default:
-      return e.eventType;
+      return <span className="text-[--k-muted]">{e.eventType}</span>;
   }
 }
