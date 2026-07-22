@@ -13,16 +13,15 @@ import api from '../services/api';
 /**
  * Matrice des categories pour le mode "remplacement" du reconditionnement.
  *
- * Une card par ProductCategory. Chaque card = 2 slots cote a cote :
- *   [ANCIEN a retirer]  ->  [NOUVEAU a installer]
+ * Une card par ProductCategory du tab actif. Sur chaque card :
+ *   [ANCIEN (lecture seule, tire de la borne)]  ->  [NOUVEAU (dropdown)]
  *
- * Auto-save au changement (debounce 500ms sur qte). Chaque save appelle
- *   PUT /refurbishments/:id/categories/:catId
- * avec `{ removed, installed }` — les 2 blocs sont optionnels : on peut
- * ne retirer que l'ancien, n'installer que le nouveau, ou faire les 2.
+ * Le "ancien" est le produit d'origine installe sur la borne pour cette
+ * categorie, recupere via l'endpoint /refurbishments/:id/suggestions.
+ * L'operateur ne choisit pas l'ancien — il choisit uniquement le NOUVEAU
+ * produit qui va le remplacer (meme categorie que la card).
  *
- * L'ancien composant a une disposition (Stock occasion / Stock neuf /
- * A tester / Rebut) qu'on choisit dans un mini dropdown.
+ * Auto-save : PUT /refurbishments/:id/categories/:catId au changement.
  */
 
 export type PartType = 'EQUIPMENT' | 'PROTECTION' | 'ACCESSORY';
@@ -60,6 +59,16 @@ interface StockSerialItem {
   serialNumber: string | null;
 }
 
+/** Suggestion = composant d'origine sur la borne (renvoye par /suggestions). */
+export interface OriginalComponent {
+  productId: string;
+  productReference: string;
+  productDescription: string | null;
+  productCategoryId: string | null;
+  serialNumber: string | null;
+  quantity: number;
+}
+
 export interface RefurbCategorySelection {
   productCategoryId: string;
   removed: {
@@ -91,6 +100,8 @@ interface Props {
   refurbId: string;
   partType: PartType | null;
   selections: Record<string, RefurbCategorySelection>;
+  /** Composants d'origine de la borne (via /suggestions), indexes par productCategoryId. */
+  originalsByCategory: Record<string, OriginalComponent[]>;
   onChanged: () => void;
 }
 
@@ -98,9 +109,9 @@ export default function ReplaceComponentPanel({
   refurbId,
   partType,
   selections,
+  originalsByCategory,
   onChanged,
 }: Props) {
-  // Categories filtrees par partType du tab actif (pour les cards principales)
   const categoriesQ = useQuery({
     queryKey: ['catalog', 'product-categories', partType],
     queryFn: async () => {
@@ -112,23 +123,9 @@ export default function ReplaceComponentPanel({
     },
   });
 
-  // TOUTES les categories (pour le dropdown "nouveau" qui peut piocher
-  // dans une autre categorie que celle de l'ancien — cas metier :
-  // remplacer un PC par une tablette).
-  const allCategoriesQ = useQuery({
-    queryKey: ['catalog', 'product-categories', 'all'],
-    queryFn: async () => {
-      const res = await api.get<{ success: boolean; data: StockProductCategory[] }>(
-        `/catalog/product-categories`,
-      );
-      return res.data.data;
-    },
-  });
-
   const categories = (categoriesQ.data || []).filter((c) =>
     partType ? c.partType === partType : true,
   );
-  const allCategories = allCategoriesQ.data || [];
 
   if (categoriesQ.isLoading) {
     return (
@@ -142,7 +139,9 @@ export default function ReplaceComponentPanel({
   if (categoriesQ.data && categories.length === 0) {
     return (
       <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3 text-[13px] text-amber-800">
-        <div className="font-medium">Aucune catégorie {partType ? `« ${partType} »` : ''} taguée</div>
+        <div className="font-medium">
+          Aucune catégorie {partType ? `« ${partType} »` : ''} taguée
+        </div>
         <div className="text-[12px] mt-0.5 text-amber-700">
           Tague les catégories dans Stock → Paramètres → Catégories principales.
         </div>
@@ -159,7 +158,7 @@ export default function ReplaceComponentPanel({
     <div className="space-y-2">
       <div className="flex items-center justify-between px-1">
         <div className="text-[11px] uppercase tracking-wide text-[--k-muted] font-semibold">
-          Sélection par catégorie (ancien → nouveau)
+          Remplacement par catégorie
         </div>
         <div className="text-[11px] text-[--k-muted] tabular-nums">
           {filledCount} / {categories.length} traitées
@@ -171,7 +170,7 @@ export default function ReplaceComponentPanel({
             key={cat.id}
             refurbId={refurbId}
             category={cat}
-            allCategories={allCategories}
+            originals={originalsByCategory[cat.id] || []}
             selection={selections[cat.id]}
             onChanged={onChanged}
           />
@@ -186,75 +185,56 @@ export default function ReplaceComponentPanel({
 interface CardProps {
   refurbId: string;
   category: StockProductCategory;
-  allCategories: StockProductCategory[];
+  /** Composants d'origine de la borne pour CETTE categorie (0 ou plus). */
+  originals: OriginalComponent[];
   selection?: RefurbCategorySelection;
   onChanged: () => void;
 }
 
-type SideState = {
-  productId: string;
-  serialNumber: string;
-  quantity: number;
-};
-
 function CategoryReplaceCard({
   refurbId,
   category,
-  allCategories,
+  originals,
   selection,
   onChanged,
 }: CardProps) {
   const qc = useQueryClient();
 
-  // Etat local des 2 slots
-  const [removed, setRemoved] = useState<SideState>({
-    productId: selection?.removed?.productId ?? '',
-    serialNumber: selection?.removed?.serialNumber ?? '',
-    quantity: selection?.removed?.quantity ?? 1,
-  });
-  const [installed, setInstalled] = useState<SideState>({
-    productId: selection?.installed?.productId ?? '',
-    serialNumber: selection?.installed?.serialNumber ?? '',
-    quantity: selection?.installed?.quantity ?? 1,
-  });
+  // Etat local du NOUVEAU (choix operateur)
+  const [installedProductId, setInstalledProductId] = useState<string>(
+    selection?.installed?.productId ?? '',
+  );
+  const [installedSerial, setInstalledSerial] = useState<string>(
+    selection?.installed?.serialNumber ?? '',
+  );
+  const [installedQty, setInstalledQty] = useState<number>(
+    selection?.installed?.quantity ?? 1,
+  );
   const [disposition, setDisposition] = useState<Disposition>(
     selection?.removed?.disposition || 'STOCK_USED',
   );
-  // Categorie du nouveau produit — par defaut la meme que la card (cas
-  // metier general "remplacement categorie identique"), mais l'operateur
-  // peut piocher dans une autre categorie (ex : PC -> Tablette).
-  // Etat UI-only (non persiste cote serveur pour l'instant).
-  const [installedCategoryId, setInstalledCategoryId] = useState<string>(category.id);
   const [error, setError] = useState<string | null>(null);
 
   // Sync avec le serveur
   useEffect(() => {
-    setRemoved({
-      productId: selection?.removed?.productId ?? '',
-      serialNumber: selection?.removed?.serialNumber ?? '',
-      quantity: selection?.removed?.quantity ?? 1,
-    });
-    setInstalled({
-      productId: selection?.installed?.productId ?? '',
-      serialNumber: selection?.installed?.serialNumber ?? '',
-      quantity: selection?.installed?.quantity ?? 1,
-    });
+    setInstalledProductId(selection?.installed?.productId ?? '');
+    setInstalledSerial(selection?.installed?.serialNumber ?? '');
+    setInstalledQty(selection?.installed?.quantity ?? 1);
     setDisposition(selection?.removed?.disposition || 'STOCK_USED');
-    // Ne reset PAS installedCategoryId au sync (etat UI-only, pas persiste).
   }, [
-    selection?.removed?.componentId,
     selection?.installed?.componentId,
-    selection?.removed?.productId,
     selection?.installed?.productId,
-    selection?.removed?.serialNumber,
     selection?.installed?.serialNumber,
-    selection?.removed?.quantity,
     selection?.installed?.quantity,
     selection?.removed?.disposition,
   ]);
 
-  // Produits de la categorie de l'ANCIEN (fixe = category.id)
-  const removedProductsQ = useQuery({
+  // L'ancien = premier composant d'origine pour cette categorie (cas usuel :
+  // 1 seul par categorie). Si plusieurs, on prend le premier ; les autres
+  // pourraient etre traites dans une iteration future.
+  const originalToRemove = originals[0] || null;
+
+  const productsQ = useQuery({
     queryKey: ['catalog', 'products', category.id],
     queryFn: async () => {
       const res = await api.get<{ success: boolean; data: StockProductLite[] }>(
@@ -264,48 +244,21 @@ function CategoryReplaceCard({
     },
   });
 
-  // Produits du NOUVEAU (categorie modifiable par l'operateur)
-  const installedProductsQ = useQuery({
-    queryKey: ['catalog', 'products', installedCategoryId],
-    queryFn: async () => {
-      const res = await api.get<{ success: boolean; data: StockProductLite[] }>(
-        `/catalog/products?productCategoryId=${installedCategoryId}`,
-      );
-      return res.data.data;
-    },
-    enabled: !!installedCategoryId,
-  });
-
-  const removedProducts = (removedProductsQ.data || []).filter(
+  const products = (productsQ.data || []).filter(
     (p) => p.productCategoryId === category.id,
   );
-  const installedProducts = (installedProductsQ.data || []).filter(
-    (p) => p.productCategoryId === installedCategoryId,
-  );
-  const removedProduct = removedProducts.find((p) => p.id === removed.productId) || null;
-  const installedProduct = installedProducts.find((p) => p.id === installed.productId) || null;
+  const installedProduct = products.find((p) => p.id === installedProductId) || null;
 
-  // Serial items pour chaque slot (si produit tracé)
-  const removedSerialsQ = useQuery({
-    queryKey: ['catalog', 'serials', removed.productId],
-    queryFn: async () => {
-      const res = await api.get<{ success: boolean; data: StockSerialItem[] }>(
-        `/catalog/products/${removed.productId}/serial-items?status=IN_STOCK`,
-      );
-      return res.data.data;
-    },
-    enabled: !!removed.productId && !!removedProduct?.hasSerialNumber,
-  });
-
+  // SN dispos pour le NOUVEAU (si tracé)
   const installedSerialsQ = useQuery({
-    queryKey: ['catalog', 'serials', installed.productId],
+    queryKey: ['catalog', 'serials', installedProductId],
     queryFn: async () => {
       const res = await api.get<{ success: boolean; data: StockSerialItem[] }>(
-        `/catalog/products/${installed.productId}/serial-items?status=IN_STOCK`,
+        `/catalog/products/${installedProductId}/serial-items?status=IN_STOCK`,
       );
       return res.data.data;
     },
-    enabled: !!installed.productId && !!installedProduct?.hasSerialNumber,
+    enabled: !!installedProductId && !!installedProduct?.hasSerialNumber,
   });
 
   const upsertM = useMutation({
@@ -328,44 +281,48 @@ function CategoryReplaceCard({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const flush = (
-    nextRemoved: SideState,
-    nextInstalled: SideState,
+    nextProductId: string,
+    nextSerial: string,
+    nextQty: number,
     nextDisposition: Disposition,
   ) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    const rmProd = removedProducts.find((p) => p.id === nextRemoved.productId);
-    const inProd = installedProducts.find((p) => p.id === nextInstalled.productId);
+    const inProd = products.find((p) => p.id === nextProductId);
     upsertM.mutate({
-      removed: rmProd
-        ? {
-            productId: rmProd.id,
-            productReference: rmProd.reference,
-            productDescription: productLabel(rmProd),
-            serialNumber: rmProd.hasSerialNumber ? nextRemoved.serialNumber.trim() || null : null,
-            quantity: Math.max(1, nextRemoved.quantity || 1),
-            disposition: nextDisposition,
-          }
-        : null,
+      // Si aucun nouveau produit ET pas d'ancien, on delete les 2. Sinon
+      // on retire toujours l'ancien (s'il existe) quand on installe.
+      removed:
+        inProd && originalToRemove
+          ? {
+              productId: originalToRemove.productId,
+              productReference: originalToRemove.productReference,
+              productDescription: originalToRemove.productDescription || null,
+              serialNumber: originalToRemove.serialNumber || null,
+              quantity: originalToRemove.quantity,
+              disposition: nextDisposition,
+            }
+          : null,
       installed: inProd
         ? {
             productId: inProd.id,
             productReference: inProd.reference,
             productDescription: productLabel(inProd),
-            serialNumber: inProd.hasSerialNumber ? nextInstalled.serialNumber.trim() || null : null,
-            quantity: Math.max(1, nextInstalled.quantity || 1),
+            serialNumber: inProd.hasSerialNumber ? nextSerial.trim() || null : null,
+            quantity: Math.max(1, nextQty || 1),
           }
         : null,
     });
   };
 
   const flushDebounced = (
-    nextRemoved: SideState,
-    nextInstalled: SideState,
+    nextProductId: string,
+    nextSerial: string,
+    nextQty: number,
     nextDisposition: Disposition,
   ) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(
-      () => flush(nextRemoved, nextInstalled, nextDisposition),
+      () => flush(nextProductId, nextSerial, nextQty, nextDisposition),
       500,
     );
   };
@@ -379,15 +336,19 @@ function CategoryReplaceCard({
     );
   };
 
-  const clearAll = () => {
+  const clearInstalled = () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    setRemoved({ productId: '', serialNumber: '', quantity: 1 });
-    setInstalled({ productId: '', serialNumber: '', quantity: 1 });
+    setInstalledProductId('');
+    setInstalledSerial('');
+    setInstalledQty(1);
+    // Vide TOUT (removed + installed). L'ancien reste dispo dans la
+    // borne, il sera re-propose au prochain edit.
     upsertM.mutate({ removed: null, installed: null });
   };
 
   const hasSelection = !!selection && (!!selection.removed || !!selection.installed);
   const busy = upsertM.isPending;
+  const thumbInstalled = fullImageUrl(installedProduct?.imageUrl);
 
   return (
     <div
@@ -415,9 +376,9 @@ function CategoryReplaceCard({
           {!busy && hasSelection && (
             <button
               type="button"
-              onClick={clearAll}
+              onClick={clearInstalled}
               className="text-[--k-muted] hover:text-rose-600 rounded p-0.5"
-              title="Retirer la sélection de cette catégorie"
+              title="Retirer la sélection"
             >
               <MinusCircle className="h-4 w-4" />
             </button>
@@ -428,83 +389,45 @@ function CategoryReplaceCard({
       {/* 2 colonnes ancien / nouveau */}
       <div className="px-3 pb-3">
         <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2 items-start">
-          {/* ANCIEN */}
-          <ProductSlot
-            side="removed"
-            label="Ancien (à retirer)"
-            product={removedProduct}
-            state={removed}
-            products={removedProducts}
-            productsLoading={removedProductsQ.isLoading}
-            serials={removedSerialsQ.data || []}
-            serialsLoading={removedSerialsQ.isLoading}
-            productLabel={productLabel}
-            busy={busy}
-            onProductChange={(pid) => {
-              const next = { ...removed, productId: pid, serialNumber: '' };
-              setRemoved(next);
-              flush(next, installed, disposition);
-            }}
-            onSerialChange={(sn) => {
-              const next = { ...removed, serialNumber: sn };
-              setRemoved(next);
-              flush(next, installed, disposition);
-            }}
-            onQtyChange={(n) => {
-              const next = { ...removed, quantity: n };
-              setRemoved(next);
-              flushDebounced(next, installed, disposition);
-            }}
-          />
+          {/* ANCIEN (READ-ONLY) */}
+          <OriginalSlot original={originalToRemove} />
 
           {/* Fleche */}
           <div className="pt-9 flex justify-center text-[--k-muted]">
             <ArrowRight className="h-4 w-4" />
           </div>
 
-          {/* NOUVEAU — categorie modifiable (ex: PC -> Tablette) */}
-          <ProductSlot
-            side="installed"
-            label="Nouveau (à installer)"
+          {/* NOUVEAU (dropdown) */}
+          <NewSlot
+            productId={installedProductId}
+            serial={installedSerial}
+            quantity={installedQty}
+            products={products}
+            productsLoading={productsQ.isLoading}
             product={installedProduct}
-            state={installed}
-            products={installedProducts}
-            productsLoading={installedProductsQ.isLoading}
+            thumbUrl={thumbInstalled}
             serials={installedSerialsQ.data || []}
             serialsLoading={installedSerialsQ.isLoading}
             productLabel={productLabel}
             busy={busy}
-            categorySelector={{
-              value: installedCategoryId,
-              categories: allCategories,
-              onChange: (newCatId) => {
-                setInstalledCategoryId(newCatId);
-                // Reset produit + SN quand on change de categorie
-                const next = { productId: '', serialNumber: '', quantity: 1 };
-                setInstalled(next);
-                flush(removed, next, disposition);
-              },
-            }}
             onProductChange={(pid) => {
-              const next = { ...installed, productId: pid, serialNumber: '' };
-              setInstalled(next);
-              flush(removed, next, disposition);
+              setInstalledProductId(pid);
+              setInstalledSerial('');
+              flush(pid, '', installedQty, disposition);
             }}
             onSerialChange={(sn) => {
-              const next = { ...installed, serialNumber: sn };
-              setInstalled(next);
-              flush(removed, next, disposition);
+              setInstalledSerial(sn);
+              flush(installedProductId, sn, installedQty, disposition);
             }}
             onQtyChange={(n) => {
-              const next = { ...installed, quantity: n };
-              setInstalled(next);
-              flushDebounced(removed, next, disposition);
+              setInstalledQty(n);
+              flushDebounced(installedProductId, installedSerial, n, disposition);
             }}
           />
         </div>
 
-        {/* Disposition du RETIRE (visible si retire choisi) */}
-        {removed.productId && (
+        {/* Disposition du RETIRE (visible si nouveau choisi ET ancien existe) */}
+        {installedProductId && originalToRemove && (
           <div className="mt-2 flex items-center gap-1.5 text-[11px] text-[--k-muted]">
             <span>Ancien →</span>
             <select
@@ -513,7 +436,7 @@ function CategoryReplaceCard({
               onChange={(e) => {
                 const next = e.target.value as Disposition;
                 setDisposition(next);
-                flush(removed, installed, next);
+                flush(installedProductId, installedSerial, installedQty, next);
               }}
               disabled={busy}
             >
@@ -532,61 +455,101 @@ function CategoryReplaceCard({
   );
 }
 
-// ─── Product slot (used for ancien and nouveau) ─────────────────────────
+// ─── Slot ANCIEN (read-only) ────────────────────────────────────────────
 
-interface SlotProps {
-  side: 'removed' | 'installed';
-  label: string;
-  product: StockProductLite | null;
-  state: SideState;
+function OriginalSlot({ original }: { original: OriginalComponent | null }) {
+  if (!original) {
+    return (
+      <div className="min-w-0">
+        <div className="text-[10px] uppercase tracking-wide font-semibold mb-1 text-rose-700">
+          Ancien (dans la borne)
+        </div>
+        <div className="flex gap-2 items-start">
+          <div className="h-12 w-12 rounded-lg border border-dashed border-[--k-border] bg-[--k-surface-2]/40 flex items-center justify-center text-[--k-muted] shrink-0">
+            <PackageIcon className="h-4 w-4" />
+          </div>
+          <div className="flex-1 min-w-0 pt-1 text-[11px] text-[--k-muted] italic">
+            Aucun composant d'origine dans cette catégorie
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="min-w-0">
+      <div className="text-[10px] uppercase tracking-wide font-semibold mb-1 text-rose-700">
+        Ancien (dans la borne)
+      </div>
+      <div className="flex gap-2 items-start">
+        <div className="h-12 w-12 rounded-lg border border-[--k-border] bg-[--k-surface-2]/40 flex items-center justify-center text-[--k-muted] shrink-0">
+          <PackageIcon className="h-4 w-4" />
+        </div>
+        <div className="flex-1 min-w-0 space-y-0.5">
+          <div className="text-[12px] font-medium text-[--k-text] leading-snug truncate">
+            {original.productDescription || original.productReference}
+          </div>
+          <div className="flex items-center gap-1.5 text-[10px] text-[--k-muted]">
+            <Hash className="h-2.5 w-2.5 shrink-0" />
+            <span className="font-mono truncate">{original.productReference}</span>
+          </div>
+          {original.serialNumber && (
+            <div className="text-[10px] text-[--k-muted]">
+              SN <span className="font-mono">{original.serialNumber}</span>
+            </div>
+          )}
+          {original.quantity > 1 && (
+            <div className="text-[10px] text-[--k-muted]">Qté {original.quantity}</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Slot NOUVEAU ───────────────────────────────────────────────────────
+
+interface NewSlotProps {
+  productId: string;
+  serial: string;
+  quantity: number;
   products: StockProductLite[];
   productsLoading: boolean;
+  product: StockProductLite | null;
+  thumbUrl: string | null;
   serials: StockSerialItem[];
   serialsLoading: boolean;
   productLabel: (p: StockProductLite) => string;
   busy: boolean;
-  /** Selecteur de categorie optionnel (uniquement cote nouveau). */
-  categorySelector?: {
-    value: string;
-    categories: StockProductCategory[];
-    onChange: (newCatId: string) => void;
-  };
   onProductChange: (id: string) => void;
   onSerialChange: (sn: string) => void;
   onQtyChange: (n: number) => void;
 }
 
-function ProductSlot({
-  side,
-  label,
-  product,
-  state,
+function NewSlot({
+  productId,
+  serial,
+  quantity,
   products,
   productsLoading,
+  product,
+  thumbUrl,
   serials,
   serialsLoading,
   productLabel,
   busy,
-  categorySelector,
   onProductChange,
   onSerialChange,
   onQtyChange,
-}: SlotProps) {
-  const thumb = fullImageUrl(product?.imageUrl);
-  const sideAccent =
-    side === 'removed'
-      ? 'text-rose-700'
-      : 'text-emerald-700';
-
+}: NewSlotProps) {
   return (
     <div className="min-w-0">
-      <div className={`text-[10px] uppercase tracking-wide font-semibold mb-1 ${sideAccent}`}>
-        {label}
+      <div className="text-[10px] uppercase tracking-wide font-semibold mb-1 text-emerald-700">
+        Nouveau (à installer)
       </div>
       <div className="flex gap-2 items-start">
-        {thumb ? (
+        {thumbUrl ? (
           <img
-            src={thumb}
+            src={thumbUrl}
             alt=""
             className="h-12 w-12 rounded-lg object-cover border border-[--k-border] bg-white shrink-0"
             loading="lazy"
@@ -600,27 +563,9 @@ function ProductSlot({
           </div>
         )}
         <div className="flex-1 min-w-0 space-y-1">
-          {categorySelector && (
-            <select
-              className="w-full text-[11px] rounded-md border border-[--k-border] bg-[--k-surface-2]/40 px-2 py-0.5 text-[--k-muted] focus:outline-none focus:ring-1 focus:ring-[--k-primary]/40"
-              value={categorySelector.value}
-              onChange={(e) => categorySelector.onChange(e.target.value)}
-              disabled={busy}
-              title="Catégorie du nouveau composant"
-            >
-              {categorySelector.categories
-                .slice()
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-            </select>
-          )}
           <select
             className="w-full text-[12px] rounded-lg border border-[--k-border] bg-[--k-surface] px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[--k-primary]/40 focus:border-[--k-primary]"
-            value={state.productId}
+            value={productId}
             onChange={(e) => onProductChange(e.target.value)}
             disabled={productsLoading || busy}
           >
@@ -646,7 +591,7 @@ function ProductSlot({
           {product?.hasSerialNumber && (
             <select
               className="w-full text-[11px] rounded-md border border-[--k-border] bg-[--k-surface] px-1.5 py-0.5"
-              value={state.serialNumber}
+              value={serial}
               onChange={(e) => onSerialChange(e.target.value)}
               disabled={serialsLoading || busy}
             >
@@ -671,7 +616,7 @@ function ProductSlot({
                 type="number"
                 min={1}
                 className="w-12 text-[11px] text-center rounded-md border border-[--k-border] bg-[--k-surface] px-1 py-0.5"
-                value={state.quantity}
+                value={quantity}
                 onChange={(e) => onQtyChange(parseInt(e.target.value) || 1)}
                 disabled={busy}
               />

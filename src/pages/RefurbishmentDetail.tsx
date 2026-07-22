@@ -31,6 +31,7 @@ import PriorityBadge from '../components/PriorityBadge';
 import ReplaceComponentPanel, {
   type PartType,
   type RefurbCategorySelection,
+  type OriginalComponent,
 } from '../components/ReplaceComponentPanel';
 import { Boxes, Shield, Wrench as WrenchIcon } from 'lucide-react';
 
@@ -93,6 +94,8 @@ interface BorneInfo {
 interface Suggestion {
   productId: string;
   productReference: string;
+  productDescription: string | null;
+  productCategoryId: string | null;
   serialNumber: string | null;
   quantity: number;
   alreadyRemoved: boolean;
@@ -270,6 +273,7 @@ export default function RefurbishmentDetail() {
 
       <ComponentsSection
         components={refurb.components}
+        suggestions={suggestQ.data || []}
         canEdit={canAddComponents}
         refurbId={refurb.id}
         onChanged={invalidateAll}
@@ -731,11 +735,13 @@ function QuickRemoveModal({
 
 function ComponentsSection({
   components,
+  suggestions,
   canEdit,
   refurbId,
   onChanged,
 }: {
   components: RefurbComponent[];
+  suggestions: Suggestion[];
   canEdit: boolean;
   refurbId: string;
   onChanged: () => void;
@@ -796,6 +802,25 @@ function ComponentsSection({
     (s) => s.removed || s.installed,
   ).length;
 
+  // Composants d'origine (via /suggestions) indexes par productCategoryId
+  // pour que chaque card puisse afficher son "ancien" en lecture seule.
+  const originalsByCategory = useMemo(() => {
+    const out: Record<string, OriginalComponent[]> = {};
+    for (const s of suggestions) {
+      if (!s.productCategoryId) continue;
+      if (!out[s.productCategoryId]) out[s.productCategoryId] = [];
+      out[s.productCategoryId].push({
+        productId: s.productId,
+        productReference: s.productReference,
+        productDescription: s.productDescription,
+        productCategoryId: s.productCategoryId,
+        serialNumber: s.serialNumber,
+        quantity: s.quantity,
+      });
+    }
+    return out;
+  }, [suggestions]);
+
   return (
     <section className="rounded-2xl border border-[--k-border] bg-[--k-surface] overflow-hidden shadow-sm shadow-black/[0.03]">
       {/* Header enrichi */}
@@ -851,6 +876,7 @@ function ComponentsSection({
             refurbId={refurbId}
             partType={activeTab}
             selections={categorySelections}
+            originalsByCategory={originalsByCategory}
             onChanged={onChanged}
           />
         ) : (
