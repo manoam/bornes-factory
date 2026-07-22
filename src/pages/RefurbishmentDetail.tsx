@@ -32,6 +32,11 @@ import QrScannerModal, { type ParsedQr } from '../components/QrScannerModal';
 import OperatorAvatar from '../components/OperatorAvatar';
 import SerialLink from '../components/SerialLink';
 import PriorityBadge from '../components/PriorityBadge';
+import ReplaceComponentPanel, {
+  type PartType,
+  type RefurbCategorySelection,
+} from '../components/ReplaceComponentPanel';
+import { Boxes, Shield, Wrench as WrenchIcon } from 'lucide-react';
 
 type Status = 'DRAFT' | 'IN_PROGRESS' | 'TESTING' | 'COMPLETED' | 'CANCELLED';
 type Action = 'REMOVED' | 'INSTALLED';
@@ -42,6 +47,7 @@ interface RefurbComponent {
   action: Action;
   productId: string;
   productReference: string;
+  productCategoryId: string | null;
   serialNumber: string | null;
   quantity: number;
   disposition: Disposition | null;
@@ -117,6 +123,23 @@ const DISPOSITION_LABEL: Record<Disposition, string> = {
   STOCK_USED: 'Stock occasion',
   TO_TEST: 'À tester',
   SCRAP: 'Rebut',
+};
+
+const PART_TYPE_LABEL: Record<PartType, string> = {
+  EQUIPMENT: 'Équipement',
+  PROTECTION: 'Protection',
+  ACCESSORY: 'Accessoire',
+};
+const PART_TYPE_ORDER: PartType[] = ['EQUIPMENT', 'PROTECTION', 'ACCESSORY'];
+const PART_TYPE_ICON: Record<PartType, typeof Boxes> = {
+  EQUIPMENT: Boxes,
+  PROTECTION: Shield,
+  ACCESSORY: WrenchIcon,
+};
+const PART_TYPE_ACCENT: Record<PartType, { text: string; border: string }> = {
+  EQUIPMENT: { text: 'text-blue-700', border: 'border-blue-600' },
+  PROTECTION: { text: 'text-emerald-700', border: 'border-emerald-600' },
+  ACCESSORY: { text: 'text-amber-700', border: 'border-amber-600' },
 };
 
 // ─── Page ────────────────────────────────────────────────────────────────
@@ -721,70 +744,155 @@ function ComponentsSection({
   refurbId: string;
   onChanged: () => void;
 }) {
-  const removed = components.filter((c) => c.action === 'REMOVED');
-  const installed = components.filter((c) => c.action === 'INSTALLED');
-  const [showForm, setShowForm] = useState<Action | null>(null);
+  const [activeTab, setActiveTab] = useState<PartType>(() => {
+    try {
+      const v = localStorage.getItem('refurb_components_tab');
+      if (v && PART_TYPE_ORDER.includes(v as PartType)) return v as PartType;
+    } catch {
+      /* ignore */
+    }
+    return 'EQUIPMENT';
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('refurb_components_tab', activeTab);
+    } catch {
+      /* ignore */
+    }
+  }, [activeTab]);
+
+  // Selections par ProductCategory : agrege les composants avec un
+  // productCategoryId non null (nouveau mode). Les composants sans
+  // productCategoryId (ancien mode / QR scan libre) restent visibles
+  // dans la section legacy ci-dessous.
+  const categorySelections = useMemo(() => {
+    const out: Record<string, RefurbCategorySelection> = {};
+    for (const c of components) {
+      if (!c.productCategoryId) continue;
+      if (!out[c.productCategoryId]) {
+        out[c.productCategoryId] = {
+          productCategoryId: c.productCategoryId,
+          removed: null,
+          installed: null,
+        };
+      }
+      const slot = out[c.productCategoryId];
+      const entry = {
+        componentId: c.id,
+        productId: c.productId,
+        productReference: c.productReference,
+        serialNumber: c.serialNumber,
+        quantity: c.quantity,
+      };
+      if (c.action === 'REMOVED') {
+        slot.removed = { ...entry, disposition: c.disposition };
+      } else {
+        slot.installed = entry;
+      }
+    }
+    return out;
+  }, [components]);
+
+  const legacyComponents = components.filter((c) => !c.productCategoryId);
+  const legacyRemoved = legacyComponents.filter((c) => c.action === 'REMOVED');
+  const legacyInstalled = legacyComponents.filter((c) => c.action === 'INSTALLED');
+  const totalSelected = Object.values(categorySelections).filter(
+    (s) => s.removed || s.installed,
+  ).length;
 
   return (
-    <section className="rounded-xl border border-[--k-border] bg-[--k-surface]">
-      <header className="px-4 py-3 border-b border-[--k-border] flex items-center justify-between">
-        <h2 className="text-[14px] font-semibold flex items-center gap-2">
-          <Wrench className="h-4 w-4 text-[--k-primary]" />
-          Composants ({components.length})
-        </h2>
-        {canEdit && !showForm && (
-          <div className="flex gap-1">
-            <button
-              type="button"
-              onClick={() => setShowForm('REMOVED')}
-              className="inline-flex items-center gap-1 rounded-lg border border-rose-200 text-rose-700 px-2 py-1 text-[12px]"
-            >
-              <Package className="h-3.5 w-3.5" />
-              Retirer
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowForm('INSTALLED')}
-              className="inline-flex items-center gap-1 rounded-lg bg-[--k-primary] text-white px-2 py-1 text-[12px]"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Installer
-            </button>
+    <section className="rounded-2xl border border-[--k-border] bg-[--k-surface] overflow-hidden shadow-sm shadow-black/[0.03]">
+      {/* Header enrichi */}
+      <header className="px-5 pt-4 pb-3 border-b border-[--k-border]">
+        <div className="flex items-center gap-2.5">
+          <div className="h-9 w-9 rounded-xl bg-[--k-primary]/10 flex items-center justify-center text-[--k-primary] shrink-0">
+            <Wrench className="h-5 w-5" />
           </div>
-        )}
+          <div className="min-w-0">
+            <h2 className="text-[15px] font-semibold text-[--k-text] truncate">
+              Composants
+            </h2>
+            <p className="text-[11px] text-[--k-muted]">
+              {totalSelected === 0
+                ? 'Aucun remplacement en cours'
+                : `${totalSelected} catégorie${totalSelected > 1 ? 's' : ''} traitée${totalSelected > 1 ? 's' : ''}`}
+              {legacyComponents.length > 0 && (
+                <span> · {legacyComponents.length} composant{legacyComponents.length > 1 ? 's' : ''} historique{legacyComponents.length > 1 ? 's' : ''}</span>
+              )}
+            </p>
+          </div>
+        </div>
       </header>
 
-      {showForm && (
-        <AddForm
-          action={showForm}
-          refurbId={refurbId}
-          onDone={() => {
-            setShowForm(null);
-            onChanged();
-          }}
-          onCancel={() => setShowForm(null)}
-        />
-      )}
+      {/* Barre de tabs partType */}
+      <div className="flex items-stretch border-b border-[--k-border] bg-[--k-surface-2]/40">
+        {PART_TYPE_ORDER.map((t) => {
+          const accent = PART_TYPE_ACCENT[t];
+          const Icon = PART_TYPE_ICON[t];
+          const active = activeTab === t;
+          return (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setActiveTab(t)}
+              className={`relative flex-1 px-3 py-3 text-[13px] font-medium transition flex items-center justify-center gap-2 border-b-2 -mb-[2px] ${
+                active
+                  ? `${accent.text} ${accent.border} bg-[--k-surface]`
+                  : 'text-[--k-muted] border-transparent hover:text-[--k-text] hover:bg-[--k-surface]/60'
+              }`}
+            >
+              <Icon className={`h-4 w-4 shrink-0 ${active ? accent.text : ''}`} />
+              <span>{PART_TYPE_LABEL[t]}</span>
+            </button>
+          );
+        })}
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[--k-border]">
-        <ComponentList
-          title="Retirés"
-          items={removed}
-          empty="Aucun composant retiré."
-          badgeColor="bg-rose-50 text-rose-700"
-          canEdit={canEdit}
-          refurbId={refurbId}
-          onDeleted={onChanged}
-        />
-        <ComponentList
-          title="Installés"
-          items={installed}
-          empty="Aucun composant installé."
-          badgeColor="bg-emerald-50 text-emerald-700"
-          canEdit={canEdit}
-          refurbId={refurbId}
-          onDeleted={onChanged}
-        />
+      {/* Contenu du tab actif */}
+      <div className="p-4 space-y-4">
+        {canEdit ? (
+          <ReplaceComponentPanel
+            refurbId={refurbId}
+            partType={activeTab}
+            selections={categorySelections}
+            onChanged={onChanged}
+          />
+        ) : (
+          <div className="rounded-xl border border-dashed border-[--k-border] bg-[--k-surface-2]/30 px-4 py-6 text-center text-[12px] text-[--k-muted]">
+            Le reconditionnement doit être « En cours » pour modifier les composants.
+          </div>
+        )}
+
+        {/* Section legacy : composants ajoutes sans productCategoryId
+            (ancien mode formulaire libre / QR scan). On les garde
+            visibles pour ne pas perdre les donnees historiques. */}
+        {legacyComponents.length > 0 && (
+          <div className="rounded-xl border border-[--k-border] overflow-hidden">
+            <div className="bg-[--k-surface-2]/50 px-3 py-2 text-[11px] uppercase tracking-wide text-[--k-muted] font-semibold">
+              Composants sans catégorie (mode historique)
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[--k-border]">
+              <ComponentList
+                title="Retirés"
+                items={legacyRemoved}
+                empty="Aucun."
+                badgeColor="bg-rose-50 text-rose-700"
+                canEdit={canEdit}
+                refurbId={refurbId}
+                onDeleted={onChanged}
+              />
+              <ComponentList
+                title="Installés"
+                items={legacyInstalled}
+                empty="Aucun."
+                badgeColor="bg-emerald-50 text-emerald-700"
+                canEdit={canEdit}
+                refurbId={refurbId}
+                onDeleted={onChanged}
+              />
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );
