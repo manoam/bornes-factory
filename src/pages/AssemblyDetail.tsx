@@ -1230,7 +1230,7 @@ function HistorySection({ events }: { events: AssemblyEvent[] }) {
                       <div className="pt-0.5 shrink-0">
                         <OperatorAvatar
                           name={bunch.actorName}
-                          size="md"
+                          size="lg"
                           showName={false}
                         />
                       </div>

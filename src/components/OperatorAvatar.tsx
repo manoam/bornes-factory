@@ -15,7 +15,7 @@ import { cn } from './ui/cn'
 interface OperatorAvatarProps {
   name?: string | null
   showName?: boolean
-  size?: 'xs' | 'sm' | 'md'
+  size?: 'xs' | 'sm' | 'md' | 'lg'
   className?: string
   fallback?: string
 }
@@ -24,6 +24,7 @@ const SIZE = {
   xs: { circle: 'h-4 w-4 text-[9px]', text: 'text-[11px]' },
   sm: { circle: 'h-5 w-5 text-[10px]', text: 'text-[12px]' },
   md: { circle: 'h-6 w-6 text-[11px]', text: 'text-sm' },
+  lg: { circle: 'h-9 w-9 text-[13px]', text: 'text-sm' },
 }
 
 function OperatorAvatarImpl({
