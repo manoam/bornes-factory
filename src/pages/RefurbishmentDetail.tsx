@@ -9,12 +9,9 @@ import {
   CheckCircle2,
   XCircle,
   Trash2,
-  Camera,
-  Plus,
   AlertTriangle,
   Recycle,
   Wrench,
-  Package,
   Sparkles,
   History,
   Rocket,
@@ -28,7 +25,6 @@ import {
   Ban,
 } from 'lucide-react';
 import api from '../services/api';
-import QrScannerModal, { type ParsedQr } from '../components/QrScannerModal';
 import OperatorAvatar from '../components/OperatorAvatar';
 import SerialLink from '../components/SerialLink';
 import PriorityBadge from '../components/PriorityBadge';
@@ -981,146 +977,6 @@ function ComponentItem({
         </button>
       )}
     </li>
-  );
-}
-
-// ─── Add component form ─────────────────────────────────────────────────
-
-function AddForm({
-  action,
-  refurbId,
-  onDone,
-  onCancel,
-}: {
-  action: Action;
-  refurbId: string;
-  onDone: () => void;
-  onCancel: () => void;
-}) {
-  const [productRef, setProductRef] = useState('');
-  const [productId, setProductId] = useState('');
-  const [serial, setSerial] = useState('');
-  const [quantity, setQuantity] = useState(1);
-  const [disposition, setDisposition] = useState<Disposition>('STOCK_USED');
-  const [scannerOpen, setScannerOpen] = useState(false);
-
-  const addM = useMutation({
-    mutationFn: async (payload: {
-      productId: string;
-      productReference: string;
-      serialNumber?: string | null;
-      quantity: number;
-      disposition?: Disposition;
-    }) => {
-      await api.post(`/refurbishments/${refurbId}/components`, {
-        action,
-        ...payload,
-      });
-    },
-    onSuccess: onDone,
-  });
-
-  const handleScan = async (parsed: ParsedQr) => {
-    setScannerOpen(false);
-    if (parsed.kind === 'unknown') return;
-    setProductId(parsed.id);
-    setProductRef(parsed.raw);
-  };
-
-  const submit = () => {
-    addM.mutate({
-      productId: productId || productRef,
-      productReference: productRef,
-      serialNumber: serial.trim() || null,
-      quantity,
-      disposition: action === 'REMOVED' ? disposition : undefined,
-    });
-  };
-
-  const canSubmit = !!productRef.trim() && quantity > 0;
-
-  return (
-    <div className="border-b border-[--k-border] px-4 py-3 bg-[--k-surface-2]/40 space-y-2">
-      <div className="text-[12px] font-semibold text-[--k-text]">
-        {action === 'REMOVED' ? 'Retirer un composant' : 'Installer un composant'}
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <div>
-          <label className="text-[11px] text-[--k-muted]">Référence produit / ID</label>
-          <div className="flex gap-1">
-            <input
-              className="input-field font-mono"
-              value={productRef}
-              onChange={(e) => setProductRef(e.target.value)}
-              placeholder="ex : B0CRMQCYXH"
-            />
-            <button
-              type="button"
-              onClick={() => setScannerOpen(true)}
-              className="rounded-lg border border-[--k-border] px-2 text-[--k-muted]"
-            >
-              <Camera className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-        <div>
-          <label className="text-[11px] text-[--k-muted]">N° série (si tracé)</label>
-          <input
-            className="input-field"
-            value={serial}
-            onChange={(e) => setSerial(e.target.value)}
-            placeholder="Optionnel"
-          />
-        </div>
-        <div>
-          <label className="text-[11px] text-[--k-muted]">Quantité</label>
-          <input
-            type="number"
-            min={1}
-            className="input-field"
-            value={quantity}
-            onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
-          />
-        </div>
-        {action === 'REMOVED' && (
-          <div>
-            <label className="text-[11px] text-[--k-muted]">Disposition</label>
-            <select
-              className="input-field"
-              value={disposition}
-              onChange={(e) => setDisposition(e.target.value as Disposition)}
-            >
-              <option value="STOCK_USED">Stock occasion (bon état)</option>
-              <option value="STOCK_NEW">Stock neuf</option>
-              <option value="TO_TEST">À tester (SAV)</option>
-              <option value="SCRAP">Rebut</option>
-            </select>
-          </div>
-        )}
-      </div>
-      <div className="flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-lg border border-[--k-border] px-3 py-1.5 text-[12px]"
-        >
-          Annuler
-        </button>
-        <button
-          type="button"
-          disabled={!canSubmit || addM.isPending}
-          onClick={submit}
-          className="rounded-lg bg-[--k-primary] text-white px-3 py-1.5 text-[12px] font-medium disabled:opacity-50"
-        >
-          {addM.isPending ? 'Enregistrement…' : 'Enregistrer'}
-        </button>
-      </div>
-      <QrScannerModal
-        isOpen={scannerOpen}
-        onClose={() => setScannerOpen(false)}
-        onScan={handleScan}
-      />
-    </div>
   );
 }
 
