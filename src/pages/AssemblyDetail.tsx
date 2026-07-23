@@ -62,6 +62,13 @@ interface AssemblyComponent {
   installedAt: string | null;
 }
 
+/** Extra enrichi cote backend (checklist.extras) avec description + categorie. */
+interface ExtraComponent extends AssemblyComponent {
+  productDescription?: string | null;
+  productCategoryId?: string | null;
+  productCategoryName?: string | null;
+}
+
 type PartType = 'EQUIPMENT' | 'PROTECTION' | 'ACCESSORY';
 
 const PART_TYPE_LABEL: Record<PartType, string> = {
@@ -142,7 +149,7 @@ interface CategorySelectionPayload {
 interface ChecklistPayload {
   model: string;
   lines: ChecklistLine[];
-  extras: AssemblyComponent[];
+  extras: ExtraComponent[];
   categorySelections: CategorySelectionPayload[];
   requiredCount: number;
   completeCount: number;
@@ -740,29 +747,59 @@ function ChecklistSection({
       )}
 
       {checklist.extras.length > 0 && (
-        <div className="border-t border-[--k-border] px-4 py-3">
-          <h3 className="text-[12px] uppercase tracking-wide text-[--k-muted] mb-2">
-            Composants en plus ({checklist.extras.length})
-          </h3>
-          <ul className="space-y-1 text-[13px]">
+        <div className="border-t border-[--k-border] px-4 py-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <h3 className="text-[12px] uppercase tracking-wide text-[--k-muted] font-semibold">
+              Composants installés (hors nomenclature)
+            </h3>
+            <span className="text-[11px] text-[--k-muted] tabular-nums">
+              {checklist.extras.length}
+            </span>
+          </div>
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {checklist.extras.map((c) => (
-              <li key={c.id} className="flex items-center gap-2">
-                <span className="font-mono text-[11px] text-[--k-muted]">
-                  {c.productReference}
-                </span>
-                <SerialLink
-                  serialNumber={c.serialNumber}
-                  productReference={c.productReference}
-                  productId={c.productId}
-                  quantity={c.quantity}
-                  className="text-[--k-muted]"
-                />
+              <li
+                key={c.id}
+                className="rounded-lg border border-[--k-border] bg-[--k-surface-2]/30 px-3 py-2 flex items-start justify-between gap-2"
+              >
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <div className="text-[13px] font-medium text-[--k-text] leading-snug truncate">
+                    {c.productDescription || c.productReference}
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {c.productCategoryName && (
+                      <span className="inline-flex items-center rounded-full bg-[--k-primary]/10 text-[--k-primary] text-[10px] font-medium px-1.5 py-0.5">
+                        {c.productCategoryName}
+                      </span>
+                    )}
+                    <span className="font-mono text-[10.5px] bg-[--k-surface] text-[--k-muted] px-1.5 py-0.5 rounded border border-[--k-border]">
+                      {c.productReference}
+                    </span>
+                    {c.quantity > 1 && (
+                      <span className="text-[10.5px] text-[--k-muted]">×{c.quantity}</span>
+                    )}
+                  </div>
+                  {c.serialNumber && (
+                    <div className="text-[11px] text-[--k-muted]">
+                      SN{' '}
+                      <SerialLink
+                        serialNumber={c.serialNumber}
+                        productReference={c.productReference}
+                        productId={c.productId}
+                        quantity={c.quantity}
+                        className="font-mono text-[--k-text]"
+                      />
+                    </div>
+                  )}
+                </div>
                 {editable && (
-                  <RemoveComponentBtn
-                    assemblyId={assemblyId}
-                    componentId={c.id}
-                    onDeleted={onChanged}
-                  />
+                  <div className="shrink-0">
+                    <RemoveComponentBtn
+                      assemblyId={assemblyId}
+                      componentId={c.id}
+                      onDeleted={onChanged}
+                    />
+                  </div>
                 )}
               </li>
             ))}
@@ -1012,7 +1049,17 @@ function ReadOnlyChecklistSection({ checklist }: { checklist: ChecklistPayload }
         {checklist.extras.map((c) => (
           <li key={c.id} className="px-4 py-2 flex items-center gap-3 text-[13px]">
             <Search className="h-4 w-4 text-[--k-muted]" />
-            <span className="flex-1 truncate">{c.productReference} (extra)</span>
+            <span className="flex-1 truncate">
+              <span className="font-medium">{c.productDescription || c.productReference}</span>
+              {c.productCategoryName && (
+                <span className="ml-2 inline-flex items-center rounded-full bg-[--k-primary]/10 text-[--k-primary] text-[10px] font-medium px-1.5 py-0.5">
+                  {c.productCategoryName}
+                </span>
+              )}
+              <span className="ml-2 font-mono text-[10.5px] text-[--k-muted]">
+                {c.productReference}
+              </span>
+            </span>
             <SerialLink
               serialNumber={c.serialNumber}
               productReference={c.productReference}
