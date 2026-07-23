@@ -554,8 +554,7 @@ function ChecklistSection({
   const editable = status === 'DRAFT' || status === 'IN_PROGRESS';
 
   // On groupe les lignes par partType (Equipement / Protection / Accessoire)
-  // et on cache celles sans partType. Les 3 tabs sont TOUJOURS affiches
-  // (meme vides) pour que l'operateur voie la structure attendue.
+  // et on cache celles sans partType.
   const groups = new Map<PartType, ChecklistLine[]>();
   for (const t of PART_TYPE_ORDER) groups.set(t, []);
   for (const line of checklist.lines) {
@@ -583,6 +582,19 @@ function ChecklistSection({
       /* ignore */
     }
   }, [activeTab]);
+
+  // Si le tab actif devient invisible (ex : passage en TESTING alors
+  // qu'on etait sur un tab sans ligne BOM), on bascule vers le premier
+  // tab visible.
+  useEffect(() => {
+    if (editable) return;
+    if ((groups.get(activeTab) || []).length > 0) return;
+    const firstVisible = PART_TYPE_ORDER.find((t) => (groups.get(t) || []).length > 0);
+    if (firstVisible && firstVisible !== activeTab) {
+      setActiveTab(firstVisible);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editable, groups.get(activeTab)?.length]);
 
   const activeGroup = groups.get(activeTab) || [];
   const activeComplete = activeGroup.filter((l) => l.complete).length;
@@ -648,9 +660,14 @@ function ChecklistSection({
         </div>
       </header>
 
-      {/* Barre de tabs — toujours affichee, meme si un ou plusieurs tabs sont vides */}
+      {/* Barre de tabs. En mode editable : on garde les 3 tabs meme vides
+          (le panel d'ajout laisse tjs la possibilite d'ajouter). En mode
+          non-editable (TESTING/COMPLETED/CANCELLED) : on cache les tabs
+          qui n'ont AUCUNE ligne BOM — pas d'ajout possible + pas de contenu. */}
       <div className="flex items-stretch border-b border-[--k-border] bg-[--k-surface-2]/40">
-        {PART_TYPE_ORDER.map((t) => {
+        {PART_TYPE_ORDER
+          .filter((t) => editable || (groups.get(t) || []).length > 0)
+          .map((t) => {
           const arr = groups.get(t) || [];
           const complete = arr.filter((l) => l.complete).length;
           const total = arr.length;
@@ -658,16 +675,6 @@ function ChecklistSection({
           const Icon = PART_TYPE_ICON[t];
           const active = activeTab === t;
           const isDone = total > 0 && complete === total;
-          // Compte cote selections utilisateur (pour l'affichage badge)
-          const selectionsCount = Object.values(selectionsByCategory).filter((s) => {
-            // On ne connait pas ici le partType de chaque selection sans lookup.
-            // Approx : on compte les productCategoryId qui apparaissent dans les
-            // lignes BOM du tab, sinon on prend les total selections globales / 3.
-            // Simplification : on montre juste le compteur global BOM.
-            void s;
-            return false;
-          }).length;
-          void selectionsCount;
           return (
             <button
               key={t}
